@@ -65,15 +65,20 @@ class Indexer:
         """
         
         collection_name = f"{user_id}"
-        embedding_size = os.environ.get("EMBEDDING_SIZE")
+        embedding_size = int(os.environ.get("EMBEDDING_SIZE"))
         if not self.qdrant.collection_exists(collection_name):
-            self.qdrant.create_collection(
-                collection_name=collection_name,
-                vectors_config=VectorParams(
-                    size=embedding_size, 
-                    distance=Distance.COSINE
-                ),
-            )
+            try:
+                self.qdrant.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=embedding_size, 
+                        distance=Distance.COSINE
+                    ),
+                )
+            except Exception as e:
+                # Collection might have been created by another process
+                loggers.warning(f"Collection creation failed (may already exist): {e}")
+        
         return QdrantVectorStore(
             client=self.qdrant,
             collection_name=collection_name,

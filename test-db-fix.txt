@@ -1,0 +1,24 @@
+Database Connection Test
+
+This file is uploaded to test the fixed database connection handling.
+
+Features tested:
+- Persistent database connections
+- Automatic reconnection on timeout
+- Proper connection pooling with pymysql
+- Insert operations with lastrowid
+- Update operations with connection validation
+
+The upload service should now:
+1. Save file metadata to MySQL peakdefence table
+2. Upload file to S3
+3. Send message to SQS queue
+
+The index service should then:
+1. Process the SQS message
+2. Download and extract text
+3. Generate embeddings via Bedrock
+4. Store vectors in Qdrant
+5. Update status in MySQL
+
+All database operations should complete without "closed connection" errors.

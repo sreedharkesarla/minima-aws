@@ -93,6 +93,10 @@ async def upload_files(
     """
     uploaded_files_info = []
 
+    # Ensure uploads directory exists
+    uploads_dir = "uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    
     for file in files:
         if file.content_type not in ALLOWED_CONTENT_TYPES:
             logger.error(f"Invalid file type: {file.content_type} for file {file.filename}")
@@ -101,7 +105,7 @@ async def upload_files(
                 detail=f"Invalid file type: {file.filename}. Allowed types: PDF, DOC, Excel.",
             )
             
-        file_path = os.path.join("uploads", file.filename)
+        file_path = os.path.join(uploads_dir, file.filename)
         with open(file_path, "wb") as buffer:
             buffer.write(file.file.read())
         async_message = {

@@ -1,9 +1,8 @@
 import os
 import json
-import boto3
 import logging
-import psycopg2
-from psycopg2 import sql
+import pymysql
+from pymysql import cursors
 
 logger = logging.getLogger(__name__)
 
@@ -26,33 +25,50 @@ class RDSHelper:
 
     def get_rds_endpoint(self):
         """
-        Retrieve the endpoint of the RDS instance from AWS.
+        Return the database host directly from environment variable.
+        For local MySQL, no AWS RDS API call needed.
 
         Returns:
-            str: The endpoint address of the RDS instance.
+            str: The database host address.
         """
-        rds_client = boto3.client('rds')
-        response = rds_client.describe_db_instances(DBInstanceIdentifier=self.db_instance)
-        endpoint = response['DBInstances'][0]['Endpoint']['Address']
-        return endpoint
+        return self.db_instance
 
     def connect(self):
         """
-        Establish a connection to the RDS database and initialize the cursor.
+        Establish a connection to the MySQL database and initialize the cursor.
         """
         try:
             endpoint = self.get_rds_endpoint()
-            self.connection = psycopg2.connect(
+            self.connection = pymysql.connect(
                 host=endpoint,
                 database=self.database,
                 user=self.user,
                 password=self.password,
-                port=self.port
+                port=int(self.port),
+                cursorclass=cursors.Cursor,
+                connect_timeout=10,
+                read_timeout=30,
+                write_timeout=30
             )
             self.cursor = self.connection.cursor()
             logger.info("Connected to the database")
         except Exception as error:
             logger.error(f"Error: Could not connect to the database\n{error}")
+    
+    def ensure_connection(self):
+        """
+        Ensure the database connection is active, reconnect if needed.
+        """
+        try:
+            if not self.connection or not self.connection.open:
+                logger.info("Reconnecting to database...")
+                self.connect()
+            else:
+                # Test connection with a ping
+                self.connection.ping(reconnect=True)
+        except Exception as error:
+            logger.warning(f"Connection issue, reconnecting: {error}")
+            self.connect()
 
     def disconnect(self):
         """
@@ -91,7 +107,7 @@ class RDSHelper:
         try:
             if self.cursor.closed:
                 self.connect()
-            insert_query = sql.SQL(self.rds_config['insert_record'])
+            insert_query = self.rds_config['insert_record']
             self.cursor.execute(insert_query, (file_id, user_id, file_name, status))
             record = self.cursor.fetchone()
             self.connection.commit()
@@ -148,12 +164,22 @@ class RDSHelper:
             str: JSON string containing the updated records or error message.
         """
         try:
-            if self.cursor.closed:
-                self.connect()
-            update_query = sql.SQL(self.rds_config['update_files_status'])
+            # Ensure connection is active
+            self.ensure_connection()
+            
+            # For pymysql, we need to use a simpler query format
+            # The update query should return data, so we'll do update then select
+            update_query = self.rds_config['update_files_status']
+            
+            # Replace placeholders for pymysql
             self.cursor.execute(update_query, (new_status, file_ids))
-            updated_records = self.cursor.fetchall()
             self.connection.commit()
+            
+            # Now fetch the updated record
+            select_query = "SELECT id, file_id, user_id, file_name, status FROM peakdefence WHERE file_id = %s"
+            self.cursor.execute(select_query, (file_ids,))
+            updated_records = self.cursor.fetchall()
+            
             logger.info(f"Updated {len(updated_records)} records")
             return json.dumps([{
                 "id": record[0],

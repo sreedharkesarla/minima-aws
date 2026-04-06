@@ -1,0 +1,23 @@
+Sample Document for Testing
+
+This is a test document to verify the Minima RAG application indexing pipeline.
+
+The document contains information about:
+- Document processing
+- Vector embeddings using AWS Bedrock
+- Storage in Qdrant vector database
+- Retrieval for question answering
+
+Key Features:
+1. Upload service receives files and sends them to S3
+2. Index service processes files and generates embeddings
+3. Chat service retrieves relevant context for answering questions
+
+Technical Stack:
+- Python 3.9
+- FastAPI
+- AWS Bedrock (Titan embeddings, Claude LLM)
+- Qdrant vector database
+- MySQL for metadata storage
+
+This test document should be successfully indexed into Qdrant.

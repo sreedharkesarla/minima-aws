@@ -8,5 +8,6 @@ asyncio==3.4.3
 fastapi-cognito
 python-multipart
 tenacity
-psycopg2-binary
+pymysql
+numpy>=1.21.0
 aiofiles>=23.0.0

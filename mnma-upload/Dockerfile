@@ -1,13 +1,11 @@
-FROM python:3.9.6-slim-buster
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.9-slim
+RUN apt-get update && apt-get install -y gcc ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
 COPY . .
 
 ENV PORT 8000

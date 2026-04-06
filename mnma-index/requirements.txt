@@ -15,7 +15,7 @@ qdrant-client
 uvicorn[standard]
 PyYAML
 tenacity
-psycopg2-binary
+pymysql
 nltk
 unstructured[docx,pdf,xlsx]
 python-magic
@@ -26,4 +26,5 @@ python-dotenv
 amazon-textract-caller>=0.2.0
 amazon-textract-textractor
 tiktoken
+numpy>=1.21.0
 aiofiles>=23.0.0

@@ -23,5 +23,5 @@ uvicorn[standard]
 SQLAlchemy
 pytz
 textstat
-numpy
+numpy>=1.21.0
 aiofiles>=23.0.0
