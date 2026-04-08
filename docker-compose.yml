@@ -1,5 +1,25 @@
 version: '3.9'
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: minima-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${RDS_DB_NAME:-minima_db}
+      MYSQL_USER: ${RDS_DB_USER:-admin}
+      MYSQL_PASSWORD: ${RDS_DB_PASSWORD:-admin123}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init_admin_db.sql:/docker-entrypoint-initdb.d/init_admin_db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   qdrant:
     image: qdrant/qdrant:latest
     restart: always
@@ -38,11 +58,14 @@ services:
       - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
       - AWS_FILES_PATH=${AWS_FILES_PATH}
       - LOCAL_FILES_PATH=${LOCAL_FILES_PATH}
-      - RDS_DB_INSTANCE=${RDS_DB_INSTANCE}
+      - RDS_DB_INSTANCE=mysql
       - RDS_DB_NAME=${RDS_DB_NAME}
       - RDS_DB_USER=${RDS_DB_USER}
       - RDS_DB_PASSWORD=${RDS_DB_PASSWORD}
-      - RDS_DB_PORT=${RDS_DB_PORT}
+      - RDS_DB_PORT=3306
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   mnma-index:
     build: ./mnma-index
@@ -74,15 +97,17 @@ services:
       - RDS_DB_PASSWORD=${RDS_DB_PASSWORD}
       - RDS_DB_PORT=${RDS_DB_PORT}
     depends_on:
-      - mnma-upload
-      - qdrant
+      mysql:
+        condition: service_healthy
+      mnma-upload:
+        condition: service_started
+      qdrant:
+        condition: service_started
 
   mnma-chat:
     build: ./mnma-chat
     volumes:
       - ./mnma-chat:/usr/src/app
-    ports:
-      - 8003:8000
     env_file:
       - .env
     environment:
@@ -98,6 +123,9 @@ services:
       - QDRANT_COLLECTION=${QDRANT_COLLECTION}
       - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
       - CHAT_MODEL_ID=${CHAT_MODEL_ID}
+    depends_on:
+      qdrant:
+        condition: service_started
 
   mnma-ui:
     build: ./mnma-ui
@@ -108,9 +136,25 @@ services:
       - 3000:3000
     environment:
       - VITE_UPLOAD_API_URL=http://localhost:8001
-      - VITE_CHAT_WS_URL=ws://localhost:8003
     depends_on:
       - mnma-upload
-      - mnma-chat
       - qdrant
-    
+
+  minima-admin:
+    build: ./minima-admin
+    ports:
+      - 3001:80
+    depends_on:
+      - mnma-upload
+      - mnma-index
+      - mnma-chat
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local

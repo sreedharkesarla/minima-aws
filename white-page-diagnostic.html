@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minima Admin - White Page Diagnostics</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-box {
+            background: white;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-box.error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .test-box.warning {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+        .test-box.success {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        pre {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        .instruction {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .step {
+            background: white;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Minima Admin - White Page Diagnostics</h1>
+    
+    <div class="instruction">
+        <h2>Instructions:</h2>
+        <div class="step">
+            <strong>Step 1:</strong> Keep this page open
+        </div>
+        <div class="step">
+            <strong>Step 2:</strong> Open <a href="http://localhost:3001" target="_blank">http://localhost:3001</a> in a NEW tab
+        </div>
+        <div class="step">
+            <strong>Step 3:</strong> In that new tab, press <code>F12</code> to open Developer Tools
+        </div>
+        <div class="step">
+            <strong>Step 4:</strong> Look at the <strong>Console</strong> tab for RED errors
+        </div>
+        <div class="step">
+            <strong>Step 5:</strong> Copy any error messages you see and paste them below
+        </div>
+    </div>
+    
+    <div id="results"></div>
+    
+    <div class="test-box">
+        <h3>Quick Tests</h3>
+        <button onclick="runTests()">Run Diagnostics</button>
+        <button onclick="testJSLoad()">Test JS Loading</button>
+        <button onclick="checkCache()">Check Cache</button>
+        <button onclick="location.reload(true)">Hard Refresh This Page</button>
+    </div>
+    
+    <div class="test-box">
+        <h3>Console Error Input</h3>
+        <p>If you see errors in the Console tab (F12), paste them here:</p>
+        <textarea id="error-input" style="width: 100%; height: 150px; font-family: monospace;"></textarea>
+        <button onclick="analyzeError()">Analyze Error</button>
+    </div>
+    
+    <div id="analysis"></div>
+    
+    <pre id="log"></pre>
+    
+    <script>
+        const results = document.getElementById('results');
+        const logEl = document.getElementById('log');
+        const log = [];
+        
+        function addLog(msg, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            log.push(`[${timestamp}] ${type.toUpperCase()}: ${msg}`);
+            logEl.textContent = log.join('\n');
+            console.log(msg);
+        }
+        
+        function addResult(title, message, type = 'success') {
+            const div = document.createElement('div');
+            div.className = `test-box ${type}`;
+            div.innerHTML = `<h3>${title}</h3><p>${message}</p>`;
+            results.appendChild(div);
+            addLog(`${title}: ${message}`, type);
+        }
+        
+        async function runTests() {
+            results.innerHTML = '';
+            log.length = 0;
+            
+            addLog('Starting diagnostics...');
+            
+            // Test 1: Can reach admin page
+            try {
+                const res = await fetch('http://localhost:3001/');
+                const html = await res.text();
+                
+                if (html.includes('id="root"')) {
+                    addResult('✓ HTML Structure', 'Page HTML is valid and contains root div', 'success');
+                } else {
+                    addResult('✗ HTML Structure', 'Root div not found in HTML', 'error');
+                }
+                
+                // Check for JS bundle
+                const jsMatch = html.match(/src="([^"]*index-[^"]*\.js)"/);
+                if (jsMatch) {
+                    const jsPath = jsMatch[1];
+                    addResult('✓ JS Bundle Found', `Found: ${jsPath}`, 'success');
+                    
+                    // Test if JS loads
+                    const jsRes = await fetch(`http://localhost:3001${jsPath}`);
+                    if (jsRes.ok) {
+                        const size = jsRes.headers.get('content-length');
+                        addResult('✓ JS Accessible', `JS bundle loads successfully (${(size/1024).toFixed(0)}KB)`, 'success');
+                    } else {
+                        addResult('✗ JS Not Accessible', `JS returned status ${jsRes.status}`, 'error');
+                    }
+                } else {
+                    addResult('✗ No JS Bundle', 'Could not find JS bundle reference in HTML', 'error');
+                }
+                
+            } catch (err) {
+                addResult('✗ Connection Error', err.message, 'error');
+            }
+            
+            // Test 2: Check localStorage
+            const user = localStorage.getItem('admin_user');
+            if (user) {
+                addResult('ℹ User Session', `Logged in user found in localStorage`, 'warning');
+            } else {
+                addResult('ℹ User Session', 'No user in localStorage (not logged in)', 'success');
+            }
+            
+            // Test 3: API health
+            try {
+                const apiRes = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: '', password: '' })
+                });
+                
+                if (apiRes.status === 401 || apiRes.status === 422) {
+                    addResult('✓ API Working', 'Backend API is responding', 'success');
+                } else {
+                    addResult('⚠ API Response', `API returned status ${apiRes.status}`, 'warning');
+                }
+            } catch (err) {
+                addResult('✗ API Error', err.message, 'error');
+            }
+            
+            addLog('Diagnostics complete');
+        }
+        
+        async function testJSLoad() {
+            addResult('Testing', 'Attempting to load JS bundle...', 'warning');
+            try {
+                const res = await fetch('http://localhost:3001/');
+                const html = await res.text();
+                const jsMatch = html.match(/src="([^"]*index-[^"]*\.js)"/);
+                
+                if (jsMatch) {
+                    const jsPath = jsMatch[1];
+                    const jsRes = await fetch(`http://localhost:3001${jsPath}`);
+                    const jsContent = await jsRes.text();
+                    
+                    addResult('✓ JS Content', `JS file is ${(jsContent.length/1024).toFixed(0)}KB`, 'success');
+                    
+                    // Check for common issues
+                    if (jsContent.includes('Uncaught')) {
+                        addResult('⚠ Warning', 'JS may contain runtime errors', 'warning');
+                    }
+                }
+            } catch (err) {
+                addResult('✗ Load Failed', err.message, 'error');
+            }
+        }
+        
+        function checkCache() {
+            if ('caches' in window) {
+                addResult('ℹ Cache API', 'Browser supports Cache API. Try clearing cache completely.', 'warning');
+            } else {
+                addResult('ℹ Cache API', 'Cache API not available', 'success');
+            }
+            
+            addResult('⚠ Cache Warning', 
+                'If you see a white page, your browser may be caching old files. ' +
+                'Clear cache: Ctrl+Shift+Delete, select "Cached images and files", choose "All time", click Clear.',
+                'warning');
+        }
+        
+        function analyzeError() {
+            const errorText = document.getElementById('error-input').value;
+            const analysis = document.getElementById('analysis');
+            
+            if (!errorText.trim()) {
+                analysis.innerHTML = '<div class="test-box error"><h3>No Error Provided</h3><p>Please paste the error from the Console tab.</p></div>';
+                return;
+            }
+            
+            let diagnosis = '<div class="test-box warning"><h3>Error Analysis</h3>';
+            
+            if (errorText.includes('Failed to load module')) {
+                diagnosis += '<p><strong>Issue:</strong> Module loading failed</p>';
+                diagnosis += '<p><strong>Solution:</strong> Clear browser cache completely and restart browser</p>';
+            } else if (errorText.includes('Cannot read property') || errorText.includes('Cannot read properties')) {
+                diagnosis += '<p><strong>Issue:</strong> JavaScript runtime error</p>';
+                diagnosis += '<p><strong>Solution:</strong> This is a code issue. Check if ErrorBoundary is showing details.</p>';
+            } else if (errorText.includes('404')) {
+                diagnosis += '<p><strong>Issue:</strong> Resource not found</p>';
+                diagnosis += '<p><strong>Solution:</strong> A file is missing. Check Network tab for which file.</p>';
+            } else if (errorText.includes('CORS')) {
+                diagnosis += '<p><strong>Issue:</strong> Cross-origin error</p>';
+                diagnosis += '<p><strong>Solution:</strong> Backend configuration issue</p>';
+            } else if (errorText.includes('Unexpected token')) {
+                diagnosis += '<p><strong>Issue:</strong> JavaScript syntax error</p>';
+                diagnosis += '<p><strong>Solution:</strong> The JS file may be corrupted. Rebuild the container.</p>';
+            } else {
+                diagnosis += '<p><strong>Unknown error pattern</strong></p>';
+                diagnosis += '<p>Paste the full error for detailed analysis.</p>';
+            }
+            
+            diagnosis += `<pre>${errorText}</pre></div>`;
+            analysis.innerHTML = diagnosis;
+        }
+        
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            addLog('Page loaded. Ready for diagnostics.');
+            setTimeout(runTests, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import os
 import api
+import auth
 import yaml
 import shutil
 import asyncio
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     )
     
     app.include_router(api.router)
+    app.include_router(auth.router)
     return app
 
 # Create the FastAPI application

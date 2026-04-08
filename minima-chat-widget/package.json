@@ -1,0 +1,19 @@
+{
+  "name": "minima-chat-widget",
+  "version": "1.0.0",
+  "description": "Embeddable chat widget for Minima RAG system",
+  "main": "dist/minima-chat.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["chat", "widget", "web-component", "embed"],
+  "author": "Minima",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vite": "^5.1.4"
+  }
+}

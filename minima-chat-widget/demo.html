@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minima Chat Widget - Demo</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+        h1 {
+            color: #111827;
+        }
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .widget-wrapper {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .widget-wrapper h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #374151;
+        }
+        .widget {
+            height: 500px;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .code-example {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            overflow-x: auto;
+        }
+        .code-example code {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .info {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Minima Chat Widget - Embedding Demo</h1>
+
+    <div class="info">
+        <strong>Note:</strong> This demo shows three integration methods for the Minima chat widget. 
+        Make sure the chat backend service is running on port 8003.
+    </div>
+
+    <div class="demo-container">
+        <!-- Web Component Demo -->
+        <div class="widget-wrapper">
+            <h2>1. Web Component (Custom Element)</h2>
+            <div class="widget">
+                <minima-chat
+                    data-endpoint="ws://localhost:8003/chat/test/demo-001/all"
+                    data-conversation-id="demo-001"
+                    style="--minima-chat-accent: #4f46e5; --minima-chat-font: system-ui;"
+                ></minima-chat>
+            </div>
+            <div class="code-example">
+                <code>&lt;script type="module" src="minima-chat.js"&gt;&lt;/script&gt;
+
+&lt;minima-chat
+    data-endpoint="ws://localhost:8003/chat/demo/demo-001/all"
+    data-conversation-id="demo-001"
+    style="--minima-chat-accent: #4f46e5;"
+&gt;&lt;/minima-chat&gt;</code>
+            </div>
+        </div>
+
+        <!-- iframe Demo -->
+        <div class="widget-wrapper">
+            <h2>2. iframe Embed (Maximum Isolation)</h2>
+            <div class="widget">
+                <iframe
+                    src="chat-embed.html?endpoint=ws://localhost:8003/chat/test/demo-002/all&conv=demo-002"
+                    title="Minima Chat"
+                    sandbox="allow-scripts allow-same-origin"
+                    style="width: 100%; height: 100%; border: 0; border-radius: 8px;"
+                ></iframe>
+            </div>
+            <div class="code-example">
+                <code>&lt;iframe
+    src="https://chat.minima.ai/embed?conv=demo-002"
+    title="Minima Chat"
+    sandbox="allow-scripts allow-same-origin"
+    style="width: 100%; height: 500px; border: 0;"
+&gt;&lt;/iframe&gt;</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="widget-wrapper" style="margin-top: 20px;">
+        <h2>3. JavaScript SDK (Programmatic Control)</h2>
+        <div class="code-example">
+            <code>import { MinimaChatWidget } from '@minima/chat-widget';
+
+// Create widget instance
+const chatWidget = document.createElement('minima-chat');
+chatWidget.dataset.endpoint = 'ws://localhost:8003/chat/test/demo-003/all';
+chatWidget.dataset.conversationId = 'demo-003';
+chatWidget.style.cssText = '--minima-chat-accent: #4f46e5; height: 500px;';
+
+// Mount to container
+document.getElementById('chat-container').appendChild(chatWidget);
+
+// Listen to events (custom)
+chatWidget.addEventListener('minima-chat:message', (e) => {
+    console.log('New message:', e.detail);
+});
+
+chatWidget.addEventListener('minima-chat:connect', () => {
+    console.log('Connected!');
+});</code>
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding: 20px; background: white; border-radius: 12px;">
+        <h2>Integration Features</h2>
+        <ul style="line-height: 1.8;">
+            <li>✅ <strong>Framework-agnostic</strong> - Works with React, Vue, Angular, or vanilla JS</li>
+            <li>✅ <strong>Shadow DOM</strong> - Encapsulated styles prevent conflicts</li>
+            <li>✅ <strong>WCAG 2.2 compliant</strong> - ARIA role="log", live regions, keyboard navigation</li>
+            <li>✅ <strong>Auto-reconnection</strong> - Handles network interruptions gracefully</li>
+            <li>✅ <strong>Theming</strong> - CSS custom properties for accent color and font</li>
+            <li>✅ <strong>Streaming responses</strong> - Real-time message display</li>
+            <li>✅ <strong>Security</strong> - iframe sandbox support for maximum isolation</li>
+        </ul>
+    </div>
+
+    <!-- Load the Web Component -->
+    <script type="module" src="src/index.ts"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minima Admin Diagnostics</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .test { margin: 10px 0; }
+        .pass { color: #00ff00; }
+        .fail { color: #ff0000; }
+        .info { color: #ffff00; }
+    </style>
+</head>
+<body>
+    <h1>Minima Admin Diagnostics</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test ${type}`;
+            div.textContent = `${type.toUpperCase()}: ${message}`;
+            results.appendChild(div);
+        }
+        
+        // Test 1: Check if admin page is accessible
+        log('Testing admin page accessibility...', 'info');
+        fetch('http://localhost:3001/')
+            .then(res => {
+                if (res.ok) {
+                    log('✓ Admin page is accessible', 'pass');
+                    return res.text();
+                } else {
+                    log(`✗ Admin page returned status ${res.status}`, 'fail');
+                }
+            })
+            .then(html => {
+                if (html && html.includes('id="root"')) {
+                    log('✓ HTML contains root div', 'pass');
+                } else {
+                    log('✗ HTML missing root div', 'fail');
+                }
+            })
+            .catch(err => log(`✗ Cannot reach admin page: ${err.message}`, 'fail'));
+        
+        // Test 2: Check if JS files are loading
+        fetch('http://localhost:3001/assets/')
+            .then(res => log(res.ok ? '✓ Assets directory accessible' : '✗ Assets not found', res.ok ? 'pass' : 'fail'))
+            .catch(() => log('✗ Cannot check assets', 'fail'));
+        
+        // Test 3: Check backend services
+        fetch('http://localhost:3001/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'test', password: 'test' })
+        })
+            .then(res => {
+                if (res.status === 401) {
+                    log('✓ Auth API is responding (401 expected for bad credentials)', 'pass');
+                } else if (res.ok) {
+                    log('✓ Auth API is working', 'pass');
+                } else {
+                    log(`? Auth API returned ${res.status}`, 'info');
+                }
+            })
+            .catch(err => log(`✗ Auth API error: ${err.message}`, 'fail'));
+        
+        // Test 4: Check local storage
+        setTimeout(() => {
+            const adminUser = localStorage.getItem('admin_user');
+            if (adminUser) {
+                log(`✓ User found in localStorage: ${adminUser}`, 'pass');
+            } else {
+                log('✗ No user in localStorage', 'fail');
+            }
+        }, 1000);
+        
+        log('\n=== INSTRUCTIONS ===', 'info');
+        log('1. Open http://localhost:3001 in another tab', 'info');
+        log('2. Press F12 to open Developer Tools', 'info');
+        log('3. Go to Console tab', 'info');
+        log('4. Copy any RED error messages', 'info');
+        log('5. Also check Network tab for failed requests', 'info');
+    </script>
+</body>
+</html>

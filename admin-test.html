@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test { 
+            margin: 20px 0; 
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .pass { background: #d4edda; border-color: #c3e6cb; }
+        .fail { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Minima Admin Connection Test</h1>
+    
+    <div class="test info">
+        <h3>Step 1: Open Browser Console</h3>
+        <p>Press F12 and go to the Console tab. Any errors will be shown here.</p>
+    </div>
+    
+    <div id="test1" class="test">
+        <h3>Test 1: Basic Connectivity</h3>
+        <p id="test1-result">Testing...</p>
+    </div>
+    
+    <div id="test2" class="test">
+        <h3>Test 2: JavaScript File</h3>
+        <p id="test2-result">Testing...</p>
+    </div>
+    
+    <div id="test3" class="test">
+        <h3>Test 3: API Endpoint</h3>
+        <p id="test3-result">Testing...</p>
+    </div>
+    
+    <div id="test4" class="test">
+        <h3>Test 4: Login State</h3>
+        <p id="test4-result">Checking...</p>
+    </div>
+    
+    <div class="test info">
+        <h3>Console Errors</h3>
+        <p>If you see any errors in the browser console (F12), please copy them below:</p>
+        <textarea id="error-input" style="width: 100%; height: 150px; font-family: monospace;" placeholder="Paste console errors here..."></textarea>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('console-log').textContent)" style="margin-top: 10px;">Copy Test Results</button>
+    </div>
+    
+    <pre id="console-log"></pre>
+    
+    <script>
+        const log = [];
+        
+        function updateTest(id, message, status) {
+            const elem = document.getElementById(`${id}-result`);
+            elem.textContent = message;
+            elem.parentElement.className = `test ${status}`;
+            log.push(`[${id}] ${status.toUpperCase()}: ${message}`);
+            document.getElementById('console-log').textContent = log.join('\n');
+        }
+        
+        // Test 1: Page Access
+        fetch('/')
+            .then(r => r.ok ? 
+                updateTest('test1', '✓ Admin page is accessible', 'pass') :
+                updateTest('test1', `✗ Page returned ${r.status}`, 'fail'))
+            .catch(e => updateTest('test1', `✗ Error: ${e.message}`, 'fail'));
+        
+        // Test 2: JS File
+        fetch('/assets/').then(r => {
+            if (r.ok) {
+                return r.text().then(text => {
+                    if (text.includes('index')) {
+                        updateTest('test2', '✓ JavaScript assets directory accessible', 'pass');
+                    } else {
+                        updateTest('test2', '? Assets found but index not listed', 'info');
+                    }
+                });
+            } else {
+                updateTest('test2', `✗ Assets directory returned ${r.status}`, 'fail');
+            }
+        }).catch(e => updateTest('test2', `✗ Cannot check assets: ${e.message}`, 'fail'));
+        
+        // Test 3: API
+        fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: '', password: '' })
+        }).then(r => {
+            if (r.status === 401 || r.status === 422) {
+                updateTest('test3', '✓ Auth API is responding', 'pass');
+            } else if (r.ok) {
+                updateTest('test3', '? Auth API returned success (unexpected)', 'info');
+            } else {
+                updateTest('test3', `? Auth API returned ${r.status}`, 'info');
+            }
+        }).catch(e => updateTest('test3', `✗ Auth API error: ${e.message}`, 'fail'));
+        
+        // Test 4: LocalStorage
+        setTimeout(() => {
+            const user = localStorage.getItem('admin_user');
+            if (user) {
+                try {
+                    const parsed = JSON.parse(user);
+                    updateTest('test4', `✓ Logged in as: ${parsed.username || 'unknown'}`, 'pass');
+                } catch {
+                    updateTest('test4', '? User data found but invalid JSON', 'info');
+                }
+            } else {
+                updateTest('test4', '✗ Not logged in (no user in localStorage)', 'fail');
+            }
+        }, 500);
+        
+        // Capture console errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            log.push(`[CONSOLE ERROR] ${args.join(' ')}`);
+            document.getElementById('console-log').textContent = log.join('\n');
+            originalError.apply(console, args);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .ok { background: #d4edda; }
+        .error { background: #f8d7da; }
+        .warn { background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>Minima Admin Debug Page</h1>
+    
+    <div id="status"></div>
+    
+    <h2>Instructions:</h2>
+    <ol>
+        <li>Open a new tab: <a href="http://localhost:3001" target="_blank">http://localhost:3001</a></li>
+        <li>Before logging in, press F12 to open Developer Tools</li>
+        <li>Go to the Console tab</li>
+        <li>Login with: admin / Admin@123</li>
+        <li>Watch for any RED error messages in console</li>
+        <li>Report back what you see</li>
+    </ol>
+    
+    <h2>What to look for in Console:</h2>
+    <ul>
+        <li><strong>If you see:</strong> "Failed to load module" → JS file loading issue</li>
+        <li><strong>If you see:</strong> "Cannot read property" → React component error</li>
+        <li><strong>If you see:</strong> "Unexpected token" → JavaScript syntax error</li>
+        <li><strong>If you see:</strong> Nothing (blank console) → Check Network tab for failed requests</li>
+    </ul>
+    
+    <h2>Network Tab Check:</h2>
+    <ol>
+        <li>In Developer Tools (F12), click "Network" tab</li>
+        <li>Refresh the page (Ctrl+R)</li>
+        <li>Look for any RED files (failed to load)</li>
+        <li>Click on the failed file to see the error</li>
+    </ol>
+    
+    <script>
+        const status = document.getElementById('status');
+        
+        async function runTests() {
+            // Test 1: Admin page accessible
+            try {
+                const res1 = await fetch('http://localhost:3001/');
+                const html = await res1.text();
+                
+                if (html.includes('id="root"')) {
+                    addStatus('✓ Admin HTML page is valid', 'ok');
+                } else {
+                    addStatus('✗ Admin HTML is malformed', 'error');
+                }
+                
+                // Extract JS filename
+                const match = html.match(/src="([^"]+\.js)"/);
+                if (match) {
+                    const jsFile = match[1];
+                    addStatus(`Found JS bundle: ${jsFile}`, 'ok');
+                    
+                    // Test JS file
+                    const res2 = await fetch(`http://localhost:3001${jsFile`);
+                    if (res2.ok) {
+                        const size = res2.headers.get('content-length');
+                        addStatus(`✓ JS bundle loads (${formatBytes(size)})`, 'ok');
+                    } else {
+                        addStatus(`✗ JS bundle returns ${res2.status}`, 'error');
+                    }
+                } else {
+                    addStatus('✗ No JS bundle found in HTML', 'error');
+                }
+            } catch (err) {
+                addStatus(`✗ Error: ${err.message}`, 'error');
+            }
+            
+            // Test 2: Check if user is logged in
+            const user = localStorage.getItem('admin_user');
+            if (user) {
+                try {
+                    const parsed = JSON.parse(user);
+                    addStatus(`✓ User logged in: ${parsed.username}`, 'ok');
+                } catch {
+                    addStatus('⚠ Invalid user data in localStorage', 'warn');
+                }
+            } else {
+                addStatus('ℹ Not logged in yet', 'warn');
+            }
+            
+            // Test 3: API health
+            try {
+                const res = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'test', password: 'test' })
+                });
+                
+                if (res.status === 401 || res.status === 422) {
+                    addStatus('✓ API is responding', 'ok');
+                } else {
+                    addStatus(`⚠ API returned unexpected ${res.status}`, 'warn');
+                }
+            } catch (err) {
+                addStatus(`✗ API error: ${err.message}`, 'error');
+            }
+        }
+        
+        function addStatus(message, type) {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            status.appendChild(div);
+        }
+        
+        function formatBytes(bytes) {
+            if (!bytes) return 'unknown size';
+            const kb = parseInt(bytes) / 1024;
+            return kb > 1024 ? `${(kb/1024).toFixed(1)} MB` : `${kb.toFixed(1)} KB`;
+        }
+        
+        // Run tests on load
+        runTests();
+    </script>
+</body>
+</html>

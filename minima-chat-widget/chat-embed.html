@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minima Chat - Embedded</title>
+    <script type="module" src="src/index.ts"></script>
+</head>
+<body style="margin: 0; height: 100vh; overflow: hidden;">
+    <minima-chat id="chat" style="width: 100%; height: 100%; display: block;"></minima-chat>
+    
+    <script>
+        // Parse URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const endpoint = params.get('endpoint');
+        const conversationId = params.get('conv');
+        
+        const chat = document.getElementById('chat');
+        if (endpoint) chat.dataset.endpoint = endpoint;
+        if (conversationId) chat.dataset.conversationId = conversationId;
+        
+        // postMessage communication for iframe embedding
+        window.addEventListener('message', (event) => {
+            // Verify origin in production
+            // if (event.origin !== 'https://your-host.com') return;
+            
+            const { type, payload } = event.data || {};
+            
+            if (type === 'minima-chat:init') {
+                if (payload.endpoint) chat.dataset.endpoint = payload.endpoint;
+                if (payload.authToken) chat.dataset.authToken = payload.authToken;
+                
+                window.parent.postMessage({
+                    type: 'minima-chat:ready',
+                    version: '1.0.0'
+                }, '*');
+            }
+        });
+    </script>
+</body>
+</html>
