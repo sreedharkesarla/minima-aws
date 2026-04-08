@@ -51,9 +51,9 @@ export const ChatPage: React.FC = () => {
 
     // Connect to WebSocket
     // URL structure: /chat/{collection_name}/{conversation_id}/{file_ids}
-    // Using 'test' as collection name since that's where documents are indexed
+    // Using 'TM' as collection name since that's where documents are indexed
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/chat/chat/test/${state.user.username}-${conversationId.current}/`;
+    const wsUrl = `${protocol}//${window.location.host}/api/chat/chat/TM/${state.user.username}-${conversationId.current}/`;
     
     console.log('Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);

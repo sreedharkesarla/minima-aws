@@ -18,6 +18,12 @@ import {
   CircularProgress,
   IconButton,
   Tooltip,
+  Checkbox,
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useDropzone } from 'react-dropzone';
 import { 
@@ -29,6 +35,12 @@ import {
   CheckCircle,
   Error as ErrorIcon,
   Storage,
+  Search,
+  Download,
+  Visibility,
+  DeleteSweep,
+  CheckBox,
+  CheckBoxOutlineBlank,
 } from '@mui/icons-material';
 import { useAppContext } from '../contexts/AppContext';
 import { uploadFile, getFiles, deleteFile, getQdrantCollections, getDocumentTypes } from '../services/adminApi';
@@ -54,6 +66,11 @@ export const FileIntakePage: React.FC = () => {
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [qdrantCollections, setQdrantCollections] = useState<any[]>([]);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+  const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const loadDocuments = async () => {
     if (!state.user) return;
@@ -92,6 +109,21 @@ export const FileIntakePage: React.FC = () => {
     loadDocuments();
     loadDocumentTypes();
   }, [state.user]);
+
+  // Auto-refresh when there are files being indexed
+  useEffect(() => {
+    const hasIndexingFiles = documents.some(
+      (doc) => doc.status === 'uploaded' || doc.status === 'processing'
+    );
+
+    if (hasIndexingFiles || autoRefresh) {
+      const interval = setInterval(() => {
+        loadDocuments();
+      }, 5000); // Poll every 5 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [documents, autoRefresh]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setSelectedFiles((prev) => [...prev, ...acceptedFiles]);
@@ -149,8 +181,12 @@ export const FileIntakePage: React.FC = () => {
       setSelectedFiles([]);
       setMetadata({ documentType: '', sensitivity: 'internal', tags: [] });
       
-      // Reload documents after upload
+      // Reload documents after upload and enable auto-refresh
       await loadDocuments();
+      setAutoRefresh(true);
+      
+      // Disable auto-refresh after 2 minutes
+      setTimeout(() => setAutoRefresh(false), 120000);
     } catch (error) {
       dispatch({
         type: 'ADD_NOTIFICATION',
@@ -180,6 +216,73 @@ export const FileIntakePage: React.FC = () => {
       tags: prev.tags.filter((t) => t !== tag),
     }));
   };
+
+  const handleToggleDocument = (fileId: string) => {
+    setSelectedDocuments((prev) =>
+      prev.includes(fileId)
+        ? prev.filter((id) => id !== fileId)
+        : [...prev, fileId]
+    );
+  };
+
+  const handleToggleAll = () => {
+    if (selectedDocuments.length === filteredDocuments.length) {
+      setSelectedDocuments([]);
+    } else {
+      setSelectedDocuments(filteredDocuments.map((doc) => doc.fileId));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedDocuments.length === 0) return;
+    
+    if (!window.confirm(`Delete ${selectedDocuments.length} document(s)?`)) {
+      return;
+    }
+
+    try {
+      // Delete each file individually
+      for (const fileId of selectedDocuments) {
+        await deleteFile(state.user!.userId, fileId);
+      }
+
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          message: `Successfully deleted ${selectedDocuments.length} document(s)`,
+          severity: 'success',
+        },
+      });
+
+      setSelectedDocuments([]);
+      await loadDocuments();
+    } catch (error) {
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          message: 'Failed to delete some documents',
+          severity: 'error',
+        },
+      });
+    }
+  };
+
+  const handleDownload = (doc: FileMetadata) => {
+    // Download via S3 URL or construct download endpoint
+    const downloadUrl = `${(import.meta as any).env?.VITE_API_URL || '/api'}/upload/download/${doc.fileId}?user_id=${state.user?.userId}`;
+    window.open(downloadUrl, '_blank');
+  };
+
+  // Filter documents based on search and status
+  const filteredDocuments = documents.filter((doc) => {
+    const matchesSearch = searchQuery === '' || 
+      doc.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.fileId.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <Box>
@@ -329,7 +432,7 @@ export const FileIntakePage: React.FC = () => {
             variant="contained"
             onClick={handleUpload}
             disabled={uploading || selectedFiles.length === 0}
-            startIcon={<CloudUpload />}
+            startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
           >
             {uploading ? 'Uploading...' : 'Upload Files'}
           </Button>
@@ -358,30 +461,99 @@ export const FileIntakePage: React.FC = () => {
 
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h6">
-            Uploaded Documents
-          </Typography>
-          <Tooltip title="Refresh documents">
-            <IconButton onClick={loadDocuments} disabled={loadingDocuments}>
-              <Refresh />
-            </IconButton>
-          </Tooltip>
+          <Box>
+            <Typography variant="h6">
+              Uploaded Documents ({filteredDocuments.length})
+            </Typography>
+            {(autoRefresh || documents.some(d => d.status === 'uploaded' || d.status === 'processing')) && (
+              <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                <CircularProgress size={12} />
+                Auto-refreshing every 5 seconds...
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {selectedDocuments.length > 0 && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteSweep />}
+                onClick={handleBulkDelete}
+                size="small"
+              >
+                Delete ({selectedDocuments.length})
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={loadDocuments}
+              disabled={loadingDocuments}
+              size="small"
+            >
+              Refresh
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Search and Filter Controls */}
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            placeholder="Search files..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
+            sx={{ flexGrow: 1, minWidth: '200px' }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <FormControl size="small" sx={{ minWidth: '150px' }}>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              label="Status"
+            >
+              <MenuItem value="all">All Status</MenuItem>
+              <MenuItem value="uploaded">Uploaded</MenuItem>
+              <MenuItem value="processing">Processing</MenuItem>
+              <MenuItem value="indexed">Indexed</MenuItem>
+              <MenuItem value="failed">Failed</MenuItem>
+            </Select>
+          </FormControl>
+          {filteredDocuments.length > 0 && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={selectedDocuments.length === filteredDocuments.length ? <CheckBox /> : <CheckBoxOutlineBlank />}
+              onClick={handleToggleAll}
+            >
+              {selectedDocuments.length === filteredDocuments.length ? 'Deselect All' : 'Select All'}
+            </Button>
+          )}
         </Box>
 
         {loadingDocuments ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
           </Box>
-        ) : documents.length === 0 ? (
+        ) : filteredDocuments.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Description sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
             <Typography variant="body2" color="text.secondary">
-              No documents uploaded yet. Upload files above to get started.
+              {documents.length === 0 
+                ? 'No documents uploaded yet. Upload files above to get started.'
+                : 'No documents match your search criteria.'}
             </Typography>
           </Box>
         ) : (
           <Grid container spacing={2}>
-            {documents.map((doc) => (
+            {filteredDocuments.map((doc) => (
               <Grid item xs={12} sm={6} md={4} key={doc.fileId}>
                 <Card 
                   sx={{ 
@@ -389,6 +561,8 @@ export const FileIntakePage: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     transition: 'transform 0.2s, box-shadow 0.2s',
+                    border: selectedDocuments.includes(doc.fileId) ? '2px solid' : '1px solid',
+                    borderColor: selectedDocuments.includes(doc.fileId) ? 'primary.main' : 'divider',
                     '&:hover': {
                       transform: 'translateY(-4px)',
                       boxShadow: 4,
@@ -397,6 +571,12 @@ export const FileIntakePage: React.FC = () => {
                 >
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                      <Checkbox
+                        checked={selectedDocuments.includes(doc.fileId)}
+                        onChange={() => handleToggleDocument(doc.fileId)}
+                        size="small"
+                        sx={{ mt: -1, ml: -1 }}
+                      />
                       <Description sx={{ fontSize: 40, color: 'primary.main', mr: 1 }} />
                       <Box sx={{ flexGrow: 1 }}>
                         <Typography 
@@ -414,13 +594,19 @@ export const FileIntakePage: React.FC = () => {
                           icon={
                             doc.status === 'indexed' ? <CheckCircle /> : 
                             doc.status === 'failed' ? <ErrorIcon /> : 
-                            undefined
+                            (doc.status === 'uploaded' || doc.status === 'processing') ? (
+                              <CircularProgress size={16} thickness={5} />
+                            ) : undefined
                           }
-                          label={doc.status}
+                          label={
+                            doc.status === 'uploaded' ? 'Indexing...' :
+                            doc.status === 'processing' ? 'Processing...' :
+                            doc.status
+                          }
                           color={
                             doc.status === 'indexed' ? 'success' :
                             doc.status === 'failed' ? 'error' :
-                            doc.status === 'processing' ? 'warning' :
+                            (doc.status === 'uploaded' || doc.status === 'processing') ? 'warning' :
                             'default'
                           }
                           sx={{ textTransform: 'capitalize' }}
@@ -437,14 +623,6 @@ export const FileIntakePage: React.FC = () => {
                         </Typography>
                       </Box>
                     )}
-
-                    {/* Qdrant Collection */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Storage sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                      <Typography variant="caption" color="text.secondary">
-                        Collection: {state.user?.userId || 'test'}
-                      </Typography>
-                    </Box>
 
                     {/* Document Type */}
                     {doc.documentType && (
@@ -506,6 +684,24 @@ export const FileIntakePage: React.FC = () => {
                   </CardContent>
 
                   <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
+                    <Tooltip title="Preview">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setPreviewFile(doc)}
+                      >
+                        <Visibility fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Download">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleDownload(doc)}
+                      >
+                        <Download fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Delete document">
                       <IconButton
                         size="small"
@@ -564,6 +760,121 @@ export const FileIntakePage: React.FC = () => {
           </Box>
         )}
       </Paper>
+
+      {/* File Preview Dialog */}
+      <Dialog
+        open={previewFile !== null}
+        onClose={() => setPreviewFile(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Description color="primary" />
+            {previewFile?.filename}
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          {previewFile && (
+            <Box>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">File ID</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{previewFile.fileId}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Status</Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Chip
+                      size="small"
+                      icon={
+                        previewFile.status === 'indexed' ? <CheckCircle /> : 
+                        previewFile.status === 'failed' ? <ErrorIcon /> : 
+                        undefined
+                      }
+                      label={previewFile.status}
+                      color={
+                        previewFile.status === 'indexed' ? 'success' :
+                        previewFile.status === 'failed' ? 'error' :
+                        previewFile.status === 'processing' ? 'warning' :
+                        'default'
+                      }
+                      sx={{ textTransform: 'capitalize' }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Uploaded</Typography>
+                  <Typography variant="body2">{new Date(previewFile.createdAt).toLocaleString()}</Typography>
+                </Grid>
+                {previewFile.updatedAt && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Last Updated</Typography>
+                    <Typography variant="body2">{new Date(previewFile.updatedAt).toLocaleString()}</Typography>
+                  </Grid>
+                )}
+                {previewFile.s3Path && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">S3 Path</Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {previewFile.s3Path}
+                    </Typography>
+                  </Grid>
+                )}
+                {previewFile.documentType && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Document Type</Typography>
+                    <Typography variant="body2">{previewFile.documentType}</Typography>
+                  </Grid>
+                )}
+                {previewFile.sensitivity && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Sensitivity</Typography>
+                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{previewFile.sensitivity}</Typography>
+                  </Grid>
+                )}
+                {previewFile.fileSize && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">File Size</Typography>
+                    <Typography variant="body2">{(previewFile.fileSize / 1024).toFixed(2)} KB</Typography>
+                  </Grid>
+                )}
+                {previewFile.tags && previewFile.tags.length > 0 && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">Tags</Typography>
+                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      {previewFile.tags.map((tag) => (
+                        <Chip key={tag} label={tag} size="small" />
+                      ))}
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                <Typography variant="caption" color="text.secondary">Note</Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  Full document preview is not available yet. Click Download to view the complete file.
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewFile(null)}>Close</Button>
+          {previewFile && (
+            <Button
+              variant="contained"
+              startIcon={<Download />}
+              onClick={() => {
+                handleDownload(previewFile);
+                setPreviewFile(null);
+              }}
+            >
+              Download
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

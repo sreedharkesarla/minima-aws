@@ -95,9 +95,13 @@ async def lifespan(app: FastAPI):
         setup_sqs_queue()
         
         # Create background tasks
+        logger.info("Creating background tasks...")
         tasks.append(asyncio.create_task(consume_sqs_messages()))
+        logger.info("SQS consumer task created")
         tasks.append(asyncio.create_task(loop(async_queue, indexer)))
+        logger.info("Async loop task created")
         
+        logger.info("Application startup complete, yielding control...")
         yield
         
     finally:

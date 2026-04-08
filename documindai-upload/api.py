@@ -14,6 +14,9 @@ from fastapi import (
     Query,
     Body
 )
+from fastapi.responses import StreamingResponse
+from aws_s3_helper import AwsS3Helper
+import io
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/upload")
 
@@ -181,3 +184,101 @@ async def remove_file(file_ids: List[str] = Body(...), user_id: str = Body(...))
         )
 
     return rds_helper.delete_document(file_ids, user_id)
+
+@router.get(
+    "/users",
+    response_description='Get all users with their roles',
+)
+async def get_users():
+    """
+    Retrieve all users with their assigned roles.
+
+    Returns:
+        List: A list of all users with their roles.
+    """
+    return rds_helper.get_all_users_with_roles()
+
+@router.get(
+    "/roles",
+    response_description='Get all available roles',
+)
+async def get_roles():
+    """
+    Retrieve all available roles in the system.
+
+    Returns:
+        List: A list of all active roles.
+    """
+    return rds_helper.get_all_roles()
+
+@router.get(
+    "/download/{file_id}",
+    response_description='Download a file by file ID',
+)
+async def download_file(file_id: str, user_id: str = Query(...)):
+    """
+    Download a file from S3.
+
+    Args:
+        file_id (str): The ID of the file to download.
+        user_id (str): The ID of the user requesting the download.
+
+    Returns:
+        StreamingResponse: The file content as a streaming response.
+    """
+    if not file_id or not user_id:
+        logger.error("Empty file ID or user ID provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File ID and User ID are required"
+        )
+
+    # Get file metadata from database
+    files = rds_helper.fetch_records_by_user_id(user_id)
+    file_record = next((f for f in files if f.get('file_id') == file_id), None)
+    
+    if not file_record:
+        logger.error(f"File not found: {file_id} for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found or access denied"
+        )
+
+    try:
+        # Get S3 configuration
+        bucket = os.getenv("AWS_BUCKET_NAME")
+        s3_path = file_record.get('file_name')
+        
+        if not s3_path:
+            s3_path = os.path.join(os.getenv("AWS_FILES_PATH", ""), file_record.get('file_name', ''))
+        
+        # Download file from S3
+        file_content = AwsS3Helper.read_file_content(s3_path, bucket)
+        
+        # Determine content type based on file extension
+        filename = file_record.get('file_name', 'download')
+        content_type = "application/octet-stream"
+        if filename.endswith('.pdf'):
+            content_type = "application/pdf"
+        elif filename.endswith('.docx'):
+            content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif filename.endswith('.txt'):
+            content_type = "text/plain"
+        elif filename.endswith('.csv'):
+            content_type = "text/csv"
+        
+        # Return file as streaming response
+        return StreamingResponse(
+            io.BytesIO(file_content),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading file {file_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download file: {str(e)}"
+        )

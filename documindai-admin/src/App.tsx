@@ -8,7 +8,6 @@ import { LoginPage } from './pages/LoginPage';
 import { FileIntakePage } from './pages/FileIntakePage';
 import { ProcessingQueuePage } from './pages/ProcessingQueuePage';
 import { JobDetailPage } from './pages/JobDetailPage';
-import { AuditLogsPage } from './pages/AuditLogsPage';
 import { UsersRolesPage } from './pages/UsersRolesPage';
 import { ChatPage } from './pages/ChatPage';
 import { NotificationSnackbar } from './components/NotificationSnackbar';
@@ -62,7 +61,6 @@ function App() {
               <Route path="queue" element={<ProcessingQueuePage />} />
               <Route path="jobs/:jobId" element={<JobDetailPage />} />
               <Route path="chat" element={<ChatPage />} />
-              <Route path="audit" element={<AuditLogsPage />} />
               <Route path="users" element={<UsersRolesPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/intake" replace />} />

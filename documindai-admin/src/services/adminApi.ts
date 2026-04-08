@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { FileMetadata, ProcessingJob, AuditEvent } from '../types';
+import { FileMetadata, ProcessingJob } from '../types';
 
 // Type assertion for Vite environment variables
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
@@ -85,16 +85,6 @@ export const getProcessingQueue = async (
   }));
 };
 
-export const getAuditLogs = async (_filter?: {
-  userId?: string;
-  action?: string;
-  from?: string;
-  to?: string;
-}): Promise<AuditEvent[]> => {
-  // Mock data - replace with actual API call
-  return [];
-};
-
 export const getQdrantCollections = async (): Promise<any> => {
   try {
     const response = await axios.get('http://localhost:6333/collections');
@@ -124,6 +114,26 @@ export const getQdrantCollections = async (): Promise<any> => {
     return detailedCollections;
   } catch (error) {
     console.error('Failed to fetch Qdrant collections:', error);
+    return [];
+  }
+};
+
+export const getUsers = async (): Promise<any[]> => {
+  try {
+    const response = await api.get('/upload/users');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch users:', error);
+    return [];
+  }
+};
+
+export const getRoles = async (): Promise<any[]> => {
+  try {
+    const response = await api.get('/upload/roles');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch roles:', error);
     return [];
   }
 };

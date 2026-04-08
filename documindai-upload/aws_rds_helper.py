@@ -305,3 +305,102 @@ class RDSHelper:
         except Exception as error:
             logger.error(f"Error: Could not delete documents\n{error}")
             return {"error": str(error)}
+    
+    def get_all_users_with_roles(self):
+        """
+        Fetch all users with their assigned roles.
+
+        Returns:
+            list: List of users with their roles.
+        """
+        try:
+            # Ensure database connection is active
+            self.ensure_connection()
+            
+            # Query to get all users with their roles
+            query = """
+                SELECT 
+                    u.user_id,
+                    u.username,
+                    u.email,
+                    u.full_name,
+                    u.is_active,
+                    u.is_superuser,
+                    u.last_login,
+                    u.created_at,
+                    GROUP_CONCAT(r.role_name ORDER BY r.role_name) as roles
+                FROM users u
+                LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+                LEFT JOIN roles r ON ur.role_id = r.role_id
+                GROUP BY u.user_id, u.username, u.email, u.full_name, u.is_active, u.is_superuser, u.last_login, u.created_at
+                ORDER BY u.created_at DESC
+            """
+            
+            self.cursor.execute(query)
+            records = self.cursor.fetchall()
+            
+            users = []
+            for record in records:
+                user_id, username, email, full_name, is_active, is_superuser, last_login, created_at, roles_str = record
+                users.append({
+                    "user_id": user_id,
+                    "username": username,
+                    "email": email,
+                    "full_name": full_name,
+                    "is_active": bool(is_active),
+                    "is_superuser": bool(is_superuser),
+                    "last_login": last_login.isoformat() if last_login else None,
+                    "created_at": created_at.isoformat() if created_at else None,
+                    "roles": roles_str.split(',') if roles_str else []
+                })
+            
+            logger.info(f"Fetched {len(users)} users with roles")
+            return users
+            
+        except Exception as error:
+            logger.error(f"Error: Could not fetch users with roles\n{error}")
+            return {"error": str(error)}
+    
+    def get_all_roles(self):
+        """
+        Fetch all available roles.
+
+        Returns:
+            list: List of all roles.
+        """
+        try:
+            # Ensure database connection is active
+            self.ensure_connection()
+            
+            query = """
+                SELECT 
+                    role_id,
+                    role_name,
+                    description,
+                    is_active,
+                    created_at
+                FROM roles
+                WHERE is_active = TRUE
+                ORDER BY role_name
+            """
+            
+            self.cursor.execute(query)
+            records = self.cursor.fetchall()
+            
+            roles = []
+            for record in records:
+                role_id, role_name, description, is_active, created_at = record
+                roles.append({
+                    "role_id": role_id,
+                    "role_name": role_name,
+                    "description": description,
+                    "is_active": bool(is_active),
+                    "created_at": created_at.isoformat() if created_at else None
+                })
+            
+            logger.info(f"Fetched {len(roles)} active roles")
+            return roles
+            
+        except Exception as error:
+            logger.error(f"Error: Could not fetch roles\n{error}")
+            return {"error": str(error)}

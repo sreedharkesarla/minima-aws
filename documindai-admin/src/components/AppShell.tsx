@@ -20,7 +20,6 @@ import {
 import {
   CloudUpload,
   Queue as QueueIcon,
-  History,
   People,
   Notifications,
   AccountCircle,
@@ -61,7 +60,6 @@ export const AppShell: React.FC = () => {
     { text: 'File Intake', icon: <CloudUpload />, path: '/intake' },
     { text: 'Processing Queue', icon: <QueueIcon />, path: '/queue' },
     { text: 'Ask Chat', icon: <Chat />, path: '/chat' },
-    { text: 'Audit Logs', icon: <History />, path: '/audit' },
     { text: 'Users & Roles', icon: <People />, path: '/users' },
   ];
 

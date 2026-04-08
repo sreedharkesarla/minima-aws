@@ -53,21 +53,6 @@ export interface JobEvent {
   details?: unknown;
 }
 
-export interface AuditEvent {
-  id: string;
-  eventId: string;
-  timestamp: string;
-  userId: string;
-  username?: string;
-  action: string;
-  resourceType?: string;
-  resourceId?: string;
-  outcome: 'success' | 'failure';
-  details?: unknown;
-  ipAddress?: string;
-  userAgent?: string;
-}
-
 export interface UploadProgress {
   fileId: string;
   filename: string;
