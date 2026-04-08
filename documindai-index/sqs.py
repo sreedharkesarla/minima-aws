@@ -36,7 +36,7 @@ class SQSClient:
 
             # Default attributes
             queue_attributes = {
-                'VisibilityTimeout': '30',  # 30 seconds
+                'VisibilityTimeout': '900',  # 15 minutes for large PDF processing
                 'MessageRetentionPeriod': '345600',  # 4 days
                 'DelaySeconds': '0',
             }

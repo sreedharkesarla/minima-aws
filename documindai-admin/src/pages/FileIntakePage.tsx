@@ -31,7 +31,7 @@ import {
   Storage,
 } from '@mui/icons-material';
 import { useAppContext } from '../contexts/AppContext';
-import { uploadFile, getFiles, deleteFile, getQdrantCollections } from '../services/adminApi';
+import { uploadFile, getFiles, deleteFile, getQdrantCollections, getDocumentTypes } from '../services/adminApi';
 import { FileMetadata } from '../types';
 
 interface UploadMetadata {
@@ -53,6 +53,7 @@ export const FileIntakePage: React.FC = () => {
   const [documents, setDocuments] = useState<FileMetadata[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [qdrantCollections, setQdrantCollections] = useState<any[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<string[]>([]);
 
   const loadDocuments = async () => {
     if (!state.user) return;
@@ -78,8 +79,18 @@ export const FileIntakePage: React.FC = () => {
     }
   };
 
+  const loadDocumentTypes = async () => {
+    try {
+      const types = await getDocumentTypes();
+      setDocumentTypes(types);
+    } catch (error) {
+      console.error('Failed to load document types:', error);
+    }
+  };
+
   useEffect(() => {
     loadDocuments();
+    loadDocumentTypes();
   }, [state.user]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -258,11 +269,15 @@ export const FileIntakePage: React.FC = () => {
               }
               label="Document Type"
             >
-              <MenuItem value="invoice">Invoice</MenuItem>
-              <MenuItem value="contract">Contract</MenuItem>
-              <MenuItem value="dataset">Dataset</MenuItem>
-              <MenuItem value="report">Report</MenuItem>
-              <MenuItem value="other">Other</MenuItem>
+              {documentTypes.length > 0 ? (
+                documentTypes.map((type) => (
+                  <MenuItem key={type} value={type}>
+                    {type.replace(/_/g, ' ')}
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem value="" disabled>Loading...</MenuItem>
+              )}
             </Select>
           </FormControl>
 

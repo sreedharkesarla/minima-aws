@@ -54,7 +54,7 @@ class ChatRetriever:
         )
         self.vector_store = QdrantVectorStore(
             client=self.qdrant,
-            collection_name=user_id,
+            collection_name="TM",  # Use TM as collection name for all users
             embedding=self.embeddings,
         )
         self.llm = ChatBedrockConverse(

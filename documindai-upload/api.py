@@ -11,10 +11,21 @@ from fastapi import (
     APIRouter,
     status,
     HTTPException,
-    Query
+    Query,
+    Body
 )
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/upload")
+
+# Document types for categorization
+DOCUMENT_TYPES = [
+    "Client_Release_Notes",
+    "Client_Resolved_Issues",
+    "Internal_Release_Notes",
+    "Deployment_Guide",
+    "Control_Data_Guide",
+    "Data_Mapping_Guide"
+]
 
 ALLOWED_CONTENT_TYPES = [
     "application/pdf",
@@ -73,13 +84,27 @@ async def get_files_status(user_id: str):
 
     return rds_helper.fetch_file_statuses_by_user_id(user_id)
 
+@router.get(
+    "/document_types",
+    response_description='Get list of allowed document types',
+)
+async def get_document_types():
+    """
+    Retrieve the list of allowed document types for categorization.
+
+    Returns:
+        Dict: A dictionary containing the list of allowed document types.
+    """
+    return {"document_types": DOCUMENT_TYPES}
+
 @router.post(
     "/upload_files/", 
     response_description='Upload files by user id',
 )
 async def upload_files(
     user_id: str, 
-    files: List[UploadFile] = File(...)):
+    files: List[UploadFile] = File(...),
+    document_type: str = Query(None, description="Document type for categorization")):
     """
     Handle the upload of multiple files, save them to a specified directory, 
     and enqueue their paths for further processing.
@@ -87,10 +112,19 @@ async def upload_files(
     Args:
         user_id (str): The user ID to associate with the uploaded files.
         files (List[UploadFile]): A list of files to be uploaded. Each file should be a PDF, DOC, or Excel.
+        document_type (str): The type of document being uploaded (optional).
     Returns:
         Response: A JSON response containing the UUIDs and filenames of successfully 
         uploaded files or an HTTP 400 error if any file is not an allowed type or is empty.
     """
+    # Validate document type if provided
+    if document_type and document_type not in DOCUMENT_TYPES:
+        logger.error(f"Invalid document type: {document_type}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid document type: {document_type}. Allowed types: {', '.join(DOCUMENT_TYPES)}",
+        )
+    
     uploaded_files_info = []
 
     # Ensure uploads directory exists
@@ -112,7 +146,8 @@ async def upload_files(
             "user_id": user_id,
             "file_id": str(uuid.uuid4()),
             "file_path": file_path,
-            "filename": file.filename
+            "filename": file.filename,
+            "document_type": document_type if document_type else "General"
         }
         async_queue.enqueue(async_message)
         logger.info(f"File {file_path} uploaded successfully")
@@ -123,7 +158,7 @@ async def upload_files(
     "/remove_file/", 
     response_description='remove file by file id and user id',
 )
-async def remove_file(file_ids: List[str], user_id: str):
+async def remove_file(file_ids: List[str] = Body(...), user_id: str = Body(...)):
     """
     Remove a file from the system.
     Args:

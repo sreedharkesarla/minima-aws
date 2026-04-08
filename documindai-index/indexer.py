@@ -64,7 +64,7 @@ class Indexer:
             vector_store: Vector store initialized with the new collection.
         """
         
-        collection_name = f"{user_id}"
+        collection_name = "TM"  # Use TM as collection name for all users
         embedding_size = int(os.environ.get("EMBEDDING_SIZE"))
         if not self.qdrant.collection_exists(collection_name):
             try:

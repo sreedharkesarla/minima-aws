@@ -14,7 +14,7 @@ const api = axios.create({
 export const uploadFile = async (
   userId: string,
   file: File,
-  _metadata?: {
+  metadata?: {
     documentType: string;
     sensitivity: string;
     tags: string[];
@@ -23,20 +23,35 @@ export const uploadFile = async (
   const formData = new FormData();
   formData.append('files', file);
 
-  const response = await axios.post(
-    `${API_BASE_URL}/upload/upload_files/?user_id=${userId}`, 
-    formData, 
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }
-  );
+  // Build URL with query parameters
+  let url = `${API_BASE_URL}/upload/upload_files/?user_id=${userId}`;
+  if (metadata?.documentType) {
+    url += `&document_type=${encodeURIComponent(metadata.documentType)}`;
+  }
+
+  const response = await axios.post(url, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 
   return response.data.files[0];
 };
 
+export const getDocumentTypes = async (): Promise<string[]> => {
+  const response = await api.get('/upload/document_types');
+  return response.data.document_types;
+};
+
 export const getFiles = async (userId: string): Promise<FileMetadata[]> => {
   const response = await api.get(`/upload/get_files/${userId}`);
-  return response.data;
+  // Transform backend snake_case to frontend camelCase
+  return response.data.map((file: any) => ({
+    fileId: file.file_id,
+    filename: file.file_name,
+    status: file.status,
+    userId: file.user_id,
+    createdAt: file.created_at || new Date().toISOString(),
+    s3Path: file.file_name,
+  }));
 };
 
 export const deleteFile = async (userId: string, fileId: string): Promise<void> => {
@@ -50,30 +65,24 @@ export const getProcessingQueue = async (
   userId: string,
   _filter?: { status?: string; search?: string }
 ): Promise<ProcessingJob[]> => {
-  // Mock data for now - replace with actual API call
-  return [
-    {
-      jobId: '1',
-      fileId: 'abc123',
-      filename: 'contract_2024.pdf',
-      status: 'running',
-      progress: 45,
-      owner: userId,
-      startedAt: new Date(Date.now() - 120000).toISOString(),
-      events: [],
-    },
-    {
-      jobId: '2',
-      fileId: 'def456',
-      filename: 'invoice_march.pdf',
-      status: 'succeeded',
-      progress: 100,
-      owner: userId,
-      startedAt: new Date(Date.now() - 300000).toISOString(),
-      completedAt: new Date(Date.now() - 60000).toISOString(),
-      events: [],
-    },
-  ];
+  // Get actual files from the backend
+  const files = await getFiles(userId);
+  
+  // Transform to ProcessingJob format
+  return files.map((file) => ({
+    jobId: file.fileId,
+    fileId: file.fileId,
+    filename: file.filename,
+    status: file.status === 'indexed' ? 'succeeded' : 
+            file.status === 'uploaded' ? 'queued' : 
+            file.status === 'failed' ? 'failed' : 'running',
+    progress: file.status === 'indexed' ? 100 : 
+              file.status === 'uploaded' ? 0 : 50,
+    owner: userId,
+    startedAt: file.createdAt,
+    completedAt: file.status === 'indexed' ? file.updatedAt || file.createdAt : undefined,
+    events: [],
+  }));
 };
 
 export const getAuditLogs = async (_filter?: {
@@ -89,7 +98,30 @@ export const getAuditLogs = async (_filter?: {
 export const getQdrantCollections = async (): Promise<any> => {
   try {
     const response = await axios.get('http://localhost:6333/collections');
-    return response.data.result?.collections || [];
+    const collections = response.data.result?.collections || [];
+    
+    // Fetch detailed info for each collection to get points_count
+    const detailedCollections = await Promise.all(
+      collections.map(async (collection: any) => {
+        try {
+          const detailResponse = await axios.get(`http://localhost:6333/collections/${collection.name}`);
+          return {
+            name: collection.name,
+            points_count: detailResponse.data.result?.points_count || 0,
+            status: detailResponse.data.result?.status || 'unknown',
+          };
+        } catch (error) {
+          console.error(`Failed to fetch details for collection ${collection.name}:`, error);
+          return {
+            name: collection.name,
+            points_count: 0,
+            status: 'error',
+          };
+        }
+      })
+    );
+    
+    return detailedCollections;
   } catch (error) {
     console.error('Failed to fetch Qdrant collections:', error);
     return [];

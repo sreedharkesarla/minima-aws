@@ -53,13 +53,13 @@ async def consume_sqs_messages():
             for message in messages:
                 try:
                     logger.info(f"Message received: {message['Body']}")
-                    async_queue.enqueue(message['Body'].encode('utf-8'))
-                    
-                    # Delete message after successful processing
-                    sqs.delete_message(
-                        queue_name=queue_name,
-                        receipt_handle=message['ReceiptHandle']
-                    )
+                    # Enqueue both message body and receipt handle for later deletion
+                    message_data = {
+                        'body': message['Body'],
+                        'receipt_handle': message['ReceiptHandle'],
+                        'queue_name': queue_name
+                    }
+                    async_queue.enqueue(message_data)
                 except Exception as e:
                     logger.error(f"Error processing message: {str(e)}")
                     continue

@@ -13,3 +13,4 @@ numpy>=1.21.0
 aiofiles>=23.0.0
 bcrypt>=4.0.0
 passlib>=1.7.4
+qdrant-client
