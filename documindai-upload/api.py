@@ -1,10 +1,11 @@
 import os
 import uuid
 import logging
-from typing import List
+from typing import List, Optional
 from dependencies import async_queue
 from dependencies import rds_helper
 from usage_tracker import UsageTracker
+from pydantic import BaseModel
 
 from fastapi import (
     File,
@@ -536,3 +537,444 @@ async def get_system_settings():
     }
     
     return settings
+
+# ==================== USER MANAGEMENT ENDPOINTS ====================
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    email: str
+    full_name: str
+    is_active: bool = True
+    is_superuser: bool = False
+    role_ids: List[int] = []
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+    role_ids: Optional[List[int]] = None
+
+class PasswordReset(BaseModel):
+    new_password: str
+
+@router.post(
+    "/users/create",
+    response_description='Create a new user',
+)
+async def create_user(user: UserCreate):
+    """
+    Create a new user with roles.
+    
+    Args:
+        user (UserCreate): User creation data including username, password, email, roles.
+    
+    Returns:
+        dict: Created user information.
+    """
+    import bcrypt
+    
+    try:
+        rds_helper.ensure_connection()
+        
+        # Check if username already exists
+        check_query = "SELECT user_id FROM users WHERE username = %s"
+        rds_helper.cursor.execute(check_query, (user.username,))
+        if rds_helper.cursor.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already exists"
+            )
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Generate user_id
+        import uuid
+        user_id = str(uuid.uuid4())
+        
+        # Insert user
+        insert_query = """
+            INSERT INTO users (user_id, username, password_hash, email, full_name, is_active, is_superuser)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        rds_helper.cursor.execute(insert_query, (
+            user_id, user.username, password_hash, user.email, 
+            user.full_name, user.is_active, user.is_superuser
+        ))
+        
+        # Assign roles
+        if user.role_ids:
+            role_query = "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)"
+            for role_id in user.role_ids:
+                rds_helper.cursor.execute(role_query, (user_id, role_id))
+        
+        rds_helper.connection.commit()
+        
+        return {
+            "user_id": user_id,
+            "username": user.username,
+            "email": user.email,
+            "message": "User created successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error creating user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {str(e)}"
+        )
+
+@router.put(
+    "/users/{user_id}",
+    response_description='Update user information',
+)
+async def update_user(user_id: str, user: UserUpdate):
+    """
+    Update user information and roles.
+    
+    Args:
+        user_id (str): The user ID to update.
+        user (UserUpdate): Updated user data.
+    
+    Returns:
+        dict: Update confirmation.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        # Build update query dynamically
+        update_fields = []
+        params = []
+        
+        if user.email is not None:
+            update_fields.append("email = %s")
+            params.append(user.email)
+        if user.full_name is not None:
+            update_fields.append("full_name = %s")
+            params.append(user.full_name)
+        if user.is_active is not None:
+            update_fields.append("is_active = %s")
+            params.append(user.is_active)
+        if user.is_superuser is not None:
+            update_fields.append("is_superuser = %s")
+            params.append(user.is_superuser)
+        
+        if update_fields:
+            params.append(user_id)
+            update_query = f"UPDATE users SET {', '.join(update_fields)} WHERE user_id = %s"
+            rds_helper.cursor.execute(update_query, params)
+        
+        # Update roles if provided
+        if user.role_ids is not None:
+            # Delete existing roles
+            rds_helper.cursor.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+            
+            # Insert new roles
+            if user.role_ids:
+                role_query = "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)"
+                for role_id in user.role_ids:
+                    rds_helper.cursor.execute(role_query, (user_id, role_id))
+        
+        rds_helper.connection.commit()
+        
+        return {"message": "User updated successfully", "user_id": user_id}
+    
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error updating user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user: {str(e)}"
+        )
+
+@router.delete(
+    "/users/{user_id}",
+    response_description='Delete or deactivate a user',
+)
+async def delete_user(user_id: str, permanent: bool = Query(False)):
+    """
+    Delete or deactivate a user.
+    
+    Args:
+        user_id (str): The user ID to delete.
+        permanent (bool): If True, permanently delete. If False, just deactivate.
+    
+    Returns:
+        dict: Deletion confirmation.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        if permanent:
+            # Permanently delete user and relationships
+            rds_helper.cursor.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+            rds_helper.cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+            message = "User permanently deleted"
+        else:
+            # Just deactivate
+            rds_helper.cursor.execute("UPDATE users SET is_active = 0 WHERE user_id = %s", (user_id,))
+            message = "User deactivated"
+        
+        rds_helper.connection.commit()
+        
+        return {"message": message, "user_id": user_id}
+    
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error deleting user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete user: {str(e)}"
+        )
+
+@router.post(
+    "/users/{user_id}/reset-password",
+    response_description='Reset user password',
+)
+async def reset_password(user_id: str, reset: PasswordReset):
+    """
+    Reset a user's password.
+    
+    Args:
+        user_id (str): The user ID.
+        reset (PasswordReset): New password data.
+    
+    Returns:
+        dict: Reset confirmation.
+    """
+    import bcrypt
+    
+    try:
+        rds_helper.ensure_connection()
+        
+        # Hash new password
+        password_hash = bcrypt.hashpw(reset.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Update password
+        update_query = "UPDATE users SET password_hash = %s WHERE user_id = %s"
+        rds_helper.cursor.execute(update_query, (password_hash, user_id))
+        rds_helper.connection.commit()
+        
+        return {"message": "Password reset successfully", "user_id": user_id}
+    
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error resetting password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset password: {str(e)}"
+        )
+
+# ==================== ROLE MANAGEMENT ENDPOINTS ====================
+
+class RoleCreate(BaseModel):
+    role_name: str
+    description: str
+    permissions: List[str] = []
+
+class RoleUpdate(BaseModel):
+    role_name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    permissions: Optional[List[str]] = None
+
+@router.post(
+    "/roles/create",
+    response_description='Create a new role',
+)
+async def create_role(role: RoleCreate):
+    """
+    Create a new role with permissions.
+    
+    Args:
+        role (RoleCreate): Role creation data.
+    
+    Returns:
+        dict: Created role information.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        # Check if role name already exists
+        check_query = "SELECT role_id FROM roles WHERE role_name = %s"
+        rds_helper.cursor.execute(check_query, (role.role_name,))
+        if rds_helper.cursor.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Role name already exists"
+            )
+        
+        # Insert role
+        insert_query = """
+            INSERT INTO roles (role_name, description, is_active)
+            VALUES (%s, %s, 1)
+        """
+        rds_helper.cursor.execute(insert_query, (role.role_name, role.description))
+        role_id = rds_helper.cursor.lastrowid
+        
+        rds_helper.connection.commit()
+        
+        return {
+            "role_id": role_id,
+            "role_name": role.role_name,
+            "description": role.description,
+            "message": "Role created successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error creating role: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create role: {str(e)}"
+        )
+
+@router.put(
+    "/roles/{role_id}",
+    response_description='Update role information',
+)
+async def update_role(role_id: int, role: RoleUpdate):
+    """
+    Update role information.
+    
+    Args:
+        role_id (int): The role ID to update.
+        role (RoleUpdate): Updated role data.
+    
+    Returns:
+        dict: Update confirmation.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        # Build update query dynamically
+        update_fields = []
+        params = []
+        
+        if role.role_name is not None:
+            update_fields.append("role_name = %s")
+            params.append(role.role_name)
+        if role.description is not None:
+            update_fields.append("description = %s")
+            params.append(role.description)
+        if role.is_active is not None:
+            update_fields.append("is_active = %s")
+            params.append(role.is_active)
+        
+        if update_fields:
+            params.append(role_id)
+            update_query = f"UPDATE roles SET {', '.join(update_fields)} WHERE role_id = %s"
+            rds_helper.cursor.execute(update_query, params)
+            rds_helper.connection.commit()
+        
+        return {"message": "Role updated successfully", "role_id": role_id}
+    
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error updating role: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update role: {str(e)}"
+        )
+
+@router.delete(
+    "/roles/{role_id}",
+    response_description='Delete a role',
+)
+async def delete_role(role_id: int, permanent: bool = Query(False)):
+    """
+    Delete or deactivate a role.
+    
+    Args:
+        role_id (int): The role ID to delete.
+        permanent (bool): If True, permanently delete. If False, just deactivate.
+    
+    Returns:
+        dict: Deletion confirmation.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        if permanent:
+            # Check if role is assigned to any users
+            check_query = "SELECT COUNT(*) as count FROM user_roles WHERE role_id = %s"
+            rds_helper.cursor.execute(check_query, (role_id,))
+            result = rds_helper.cursor.fetchone()
+            
+            if result and result.get('count', 0) > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot delete role that is assigned to users. Deactivate it instead or remove from users first."
+                )
+            
+            # Permanently delete role
+            rds_helper.cursor.execute("DELETE FROM roles WHERE role_id = %s", (role_id,))
+            message = "Role permanently deleted"
+        else:
+            # Just deactivate
+            rds_helper.cursor.execute("UPDATE roles SET is_active = 0 WHERE role_id = %s", (role_id,))
+            message = "Role deactivated"
+        
+        rds_helper.connection.commit()
+        
+        return {"message": message, "role_id": role_id}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        rds_helper.connection.rollback()
+        logger.error(f"Error deleting role: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete role: {str(e)}"
+        )
+
+@router.get(
+    "/permissions",
+    response_description='Get all available permissions',
+)
+async def get_permissions():
+    """
+    Get all available system permissions.
+    
+    Returns:
+        dict: Available permissions by category.
+    """
+    # Define available permissions
+    permissions = {
+        "documents": [
+            {"name": "view_documents", "label": "View Documents", "description": "Can view documents"},
+            {"name": "upload_documents", "label": "Upload Documents", "description": "Can upload new documents"},
+            {"name": "delete_documents", "label": "Delete Documents", "description": "Can delete documents"},
+            {"name": "download_documents", "label": "Download Documents", "description": "Can download documents"}
+        ],
+        "users": [
+            {"name": "view_users", "label": "View Users", "description": "Can view user list"},
+            {"name": "create_users", "label": "Create Users", "description": "Can create new users"},
+            {"name": "edit_users", "label": "Edit Users", "description": "Can edit user profiles"},
+            {"name": "delete_users", "label": "Delete Users", "description": "Can delete users"}
+        ],
+        "roles": [
+            {"name": "view_roles", "label": "View Roles", "description": "Can view roles"},
+            {"name": "manage_roles", "label": "Manage Roles", "description": "Can create, edit, delete roles"}
+        ],
+        "system": [
+            {"name": "view_settings", "label": "View Settings", "description": "Can view system settings"},
+            {"name": "edit_settings", "label": "Edit Settings", "description": "Can modify system settings"},
+            {"name": "view_health", "label": "View System Health", "description": "Can view system health"},
+            {"name": "view_usage", "label": "View Usage Stats", "description": "Can view usage analytics"}
+        ],
+        "chat": [
+            {"name": "use_chat", "label": "Use Chat", "description": "Can use chat functionality"},
+            {"name": "view_chat_history", "label": "View Chat History", "description": "Can view own chat history"}
+        ]
+    }
+    
+    return permissions

@@ -178,4 +178,113 @@ export const getDailyUsage = async (userId: string, days: number = 30): Promise<
   }
 };
 
+// ==================== USER MANAGEMENT ====================
+
+export const createUser = async (userData: {
+  username: string;
+  password: string;
+  email: string;
+  full_name: string;
+  is_active?: boolean;
+  is_superuser?: boolean;
+  role_ids?: number[];
+}): Promise<any> => {
+  try {
+    const response = await api.post('/upload/users/create', userData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create user:', error);
+    throw error;
+  }
+};
+
+export const updateUser = async (userId: string, userData: {
+  email?: string;
+  full_name?: string;
+  is_active?: boolean;
+  is_superuser?: boolean;
+  role_ids?: number[];
+}): Promise<any> => {
+  try {
+    const response = await api.put(`/upload/users/${userId}`, userData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to update user:', error);
+    throw error;
+  }
+};
+
+export const deleteUser = async (userId: string, permanent: boolean = false): Promise<any> => {
+  try {
+    const response = await api.delete(`/upload/users/${userId}?permanent=${permanent}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to delete user:', error);
+    throw error;
+  }
+};
+
+export const resetPassword = async (userId: string, newPassword: string): Promise<any> => {
+  try {
+    const response = await api.post(`/upload/users/${userId}/reset-password`, {
+      new_password: newPassword
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to reset password:', error);
+    throw error;
+  }
+};
+
+// ==================== ROLE MANAGEMENT ====================
+
+export const createRole = async (roleData: {
+  role_name: string;
+  description: string;
+  permissions?: string[];
+}): Promise<any> => {
+  try {
+    const response = await api.post('/upload/roles/create', roleData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create role:', error);
+    throw error;
+  }
+};
+
+export const updateRole = async (roleId: number, roleData: {
+  role_name?: string;
+  description?: string;
+  is_active?: boolean;
+  permissions?: string[];
+}): Promise<any> => {
+  try {
+    const response = await api.put(`/upload/roles/${roleId}`, roleData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to update role:', error);
+    throw error;
+  }
+};
+
+export const deleteRole = async (roleId: number, permanent: boolean = false): Promise<any> => {
+  try {
+    const response = await api.delete(`/upload/roles/${roleId}?permanent=${permanent}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to delete role:', error);
+    throw error;
+  }
+};
+
+export const getPermissions = async (): Promise<any> => {
+  try {
+    const response = await api.get('/upload/permissions');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch permissions:', error);
+    throw error;
+  }
+};
+
 export default api;

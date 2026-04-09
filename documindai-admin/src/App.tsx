@@ -9,7 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { FileIntakePage } from './pages/FileIntakePage';
 import { ProcessingQueuePage } from './pages/ProcessingQueuePage';
 import { JobDetailPage } from './pages/JobDetailPage';
-import { UsersRolesPage } from './pages/UsersRolesPage';
+import { UsersRolesPage } from './pages/UsersRolesPageEnhanced';
 import { ChatPage } from './pages/ChatPage';
 import { UsagePage } from './pages/UsagePage';
 import { SettingsPage } from './pages/SettingsPage';

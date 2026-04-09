@@ -110,6 +110,19 @@ class Indexer:
         """
         path, bucket = message["path"], message["bucket"]
         file_id, user_id = message["file_id"], message["user_id"]
+        
+        # CRITICAL FIX: Check if file is already indexed to prevent infinite reindexing
+        try:
+            existing_status = self.rds_helper.get_file_status([file_id])
+            if existing_status and len(existing_status) > 0:
+                status = existing_status[0].get("status")
+                if status == "indexed":
+                    loggers.warning(f"File {file_id} is already indexed. Skipping re-indexing to prevent duplicate processing.")
+                    loggers.info(f"Skipped duplicate indexing for: {path}")
+                    return
+        except Exception as e:
+            loggers.error(f"Error checking file status: {e}. Proceeding with indexing.")
+        
         vector_store = self.setup_collection(user_id)
         _, file_extension = os.path.splitext(path)    
         file_extension = file_extension.lower()
