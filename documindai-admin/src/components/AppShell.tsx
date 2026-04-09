@@ -26,9 +26,11 @@ import {
   Menu as MenuIcon,
   Chat,
   Analytics,
+  Dashboard,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 const DRAWER_WIDTH = 240;
 
@@ -58,6 +60,7 @@ export const AppShell: React.FC = () => {
   };
 
   const menuItems = [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'File Intake', icon: <CloudUpload />, path: '/intake' },
     { text: 'Processing Queue', icon: <QueueIcon />, path: '/queue' },
     { text: 'Ask Chat', icon: <Chat />, path: '/chat' },
@@ -115,6 +118,7 @@ export const AppShell: React.FC = () => {
             Admin Console
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <ThemeSwitcher />
             <IconButton color="inherit" aria-label="notifications">
               <Badge badgeContent={state.notifications.length} color="error">
                 <Notifications />
