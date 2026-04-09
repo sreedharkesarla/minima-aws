@@ -5,6 +5,8 @@ import logging
 import asyncio
 from indexer import Indexer
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from logging_middleware import RequestLoggingMiddleware
 from async_loop import loop
 from aws_rds_helper import RDSHelper
 from dependencies import async_queue
@@ -141,6 +143,19 @@ def create_app() -> FastAPI:
         docs_url="/index/docs",
         lifespan=lifespan
     )
+    
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=True,
+    )
+    
+    # Add request logging middleware
+    app.add_middleware(RequestLoggingMiddleware, service_name="index")
+    
     return app
 
 app = create_app()

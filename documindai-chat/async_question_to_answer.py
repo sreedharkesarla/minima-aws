@@ -56,11 +56,12 @@ async def loop(
                 })
             )
         elif data:
-            answer = chat_retriever.query(data)
+            result = chat_retriever.query(data)
             response_queue.enqueue(
                 json.dumps({
                     "reporter": "output_message",
                     "type": "answer",
-                    "message": answer,
+                    "message": result["answer"],
+                    "sources": result.get("sources", []),
                 })
             )

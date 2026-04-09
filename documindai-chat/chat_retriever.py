@@ -164,13 +164,13 @@ class ChatRetriever:
 
     def query(self, question: str):
         """
-        Processes a user query through the RAG chain, tracks token usage, and returns the generated answer.
+        Processes a user query through the RAG chain, tracks token usage, and returns the generated answer with sources.
         
         Args:
             question (str): The user's question or input.
         
         Returns:
-            str: The generated answer from the conversational RAG chain.
+            dict: Dictionary containing 'answer' and 'sources' from the conversational RAG chain.
         """
         # Get response with metadata
         response = self.chat_rag.invoke(
@@ -209,4 +209,16 @@ class ChatRetriever:
         except Exception as e:
             loggers.error(f"Failed to track chat usage: {e}")
         
-        return response["answer"]
+        # Extract source documents from context
+        sources = []
+        for doc in response.get('context', []):
+            source_info = {
+                'content': doc.page_content[:200] + '...' if len(doc.page_content) > 200 else doc.page_content,
+                'metadata': doc.metadata
+            }
+            sources.append(source_info)
+        
+        return {
+            "answer": response["answer"],
+            "sources": sources
+        }

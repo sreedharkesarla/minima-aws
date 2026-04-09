@@ -14,6 +14,7 @@ import { ChatPage } from './pages/ChatPage';
 import { UsagePage } from './pages/UsagePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SystemHealthPage } from './pages/SystemHealthPage';
+import { LogsPage } from './pages/LogsPage';
 import { NotificationSnackbar } from './components/NotificationSnackbar';
 
 function AppContent() {
@@ -43,6 +44,7 @@ function AppContent() {
               <Route path="users" element={<UsersRolesPage />} />
               <Route path="usage" element={<UsagePage />} />
               <Route path="health" element={<SystemHealthPage />} />
+              <Route path="logs" element={<LogsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/intake" replace />} />

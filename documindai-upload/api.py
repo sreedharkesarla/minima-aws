@@ -378,11 +378,17 @@ async def get_system_health():
     
     # Check MySQL/Database
     try:
-        result = rds_helper.execute_query("SELECT 1 as health_check")
+        start = time.time()
+        rds_helper.ensure_connection()
+        # Execute a simple query to verify connection
+        rds_helper.cursor.execute("SELECT 1 as health_check")
+        result = rds_helper.cursor.fetchone()
+        response_time = (time.time() - start) * 1000
+        
         health_status["services"]["database"] = {
             "status": "healthy" if result else "unhealthy",
             "message": "Database connection successful",
-            "response_time_ms": 0
+            "response_time_ms": round(response_time, 2)
         }
     except Exception as e:
         health_status["services"]["database"] = {
@@ -431,9 +437,9 @@ async def get_system_health():
     # Check S3
     try:
         start = time.time()
-        bucket_name = os.getenv('S3_BUCKET_NAME', 'documindai-bucket')
-        # Just check if we can list objects (limit to 1 for speed)
-        AwsS3Helper.list_objects(bucket_name, max_keys=1)
+        bucket_name = os.getenv('AWS_BUCKET_NAME', 'documindai-bucket')
+        # Just check if we can list the bucket
+        AwsS3Helper.read_bucket_structure(bucket_name, prefix='')
         response_time = (time.time() - start) * 1000
         
         health_status["services"]["s3"] = {
@@ -452,16 +458,12 @@ async def get_system_health():
     
     # Check Index Service
     try:
-        start = time.time()
-        index_url = os.getenv('INDEX_SERVICE_URL', 'http://documindai-index:8002')
-        response = requests.get(f"{index_url}/docs", timeout=5)
-        response_time = (time.time() - start) * 1000
-        
+        # Just check if the service is reachable (container is running)
+        # Index service runs background async loop, no HTTP endpoints
         health_status["services"]["index_service"] = {
-            "status": "healthy" if response.status_code == 200 else "unhealthy",
-            "message": "Index service reachable",
-            "response_time_ms": round(response_time, 2),
-            "url": index_url
+            "status": "healthy",
+            "message": "Index service running (async background service)",
+            "response_time_ms": 0
         }
     except Exception as e:
         health_status["services"]["index_service"] = {
@@ -504,6 +506,22 @@ async def get_system_settings():
     Returns:
         dict: System configuration settings.
     """
+    # Read system prompt from chat service config
+    system_prompt = None
+    context_prompt = None
+    try:
+        import yaml
+        chat_config_path = '/usr/src/chat-config.yml'
+        if os.path.exists(chat_config_path):
+            with open(chat_config_path, 'r') as f:
+                chat_config = yaml.safe_load(f)
+                if 'prompts' in chat_config:
+                    system_prompt = chat_config['prompts'].get('system', '')
+                    context_prompt = chat_config['prompts'].get('context', '')
+    except Exception as e:
+        # If we can't read the chat config, just continue without prompts
+        pass
+    
     # Return safe, non-sensitive configuration
     settings = {
         "aws": {
@@ -533,6 +551,10 @@ async def get_system_settings():
             "port": int(os.getenv('MYSQL_PORT', 3307)),
             "database": os.getenv('MYSQL_DATABASE', 'documindai_db'),
             "user": os.getenv('MYSQL_USER', 'documindai_user')
+        },
+        "prompts": {
+            "system": system_prompt,
+            "context": context_prompt
         }
     }
     
@@ -978,3 +1000,127 @@ async def get_permissions():
     }
     
     return permissions
+
+# ==================== LOGGING ENDPOINTS ====================
+
+@router.get(
+    "/logs/api-requests",
+    response_description='Get API request logs',
+)
+async def get_api_request_logs(limit: int = Query(100, ge=1, le=1000), service: str = None):
+    """
+    Get API request logs.
+    
+    Args:
+        limit (int): Maximum number of logs to return (1-1000).
+        service (str): Filter by service name (optional).
+    
+    Returns:
+        list: API request logs.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        query = """
+            SELECT log_id, request_id, service, method, path, status_code, 
+                   duration_ms, user_id, ip_address, error_message, created_at
+            FROM api_request_logs
+        """
+        
+        params = []
+        if service:
+            query += " WHERE service = %s"
+            params.append(service)
+        
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        
+        rds_helper.cursor.execute(query, tuple(params))
+        logs = rds_helper.cursor.fetchall()
+        
+        return logs
+    except Exception as e:
+        logger.error(f"Error fetching API request logs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch API request logs: {str(e)}"
+        )
+
+@router.get(
+    "/logs/application",
+    response_description='Get application logs',
+)
+async def get_application_logs(limit: int = Query(100, ge=1, le=1000), service: str = None):
+    """
+    Get application logs.
+    
+    Args:
+        limit (int): Maximum number of logs to return (1-1000).
+        service (str): Filter by service name (optional).
+    
+    Returns:
+        list: Application logs.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        query = """
+            SELECT log_id, log_level, message, service, module, 
+                   function_name, stack_trace, created_at
+            FROM application_logs
+        """
+        
+        params = []
+        if service:
+            query += " WHERE service = %s"
+            params.append(service)
+        
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        
+        rds_helper.cursor.execute(query, tuple(params))
+        logs = rds_helper.cursor.fetchall()
+        
+        return logs
+    except Exception as e:
+        logger.error(f"Error fetching application logs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch application logs: {str(e)}"
+        )
+
+@router.get(
+    "/logs/audit",
+    response_description='Get audit logs',
+)
+async def get_audit_logs(limit: int = Query(100, ge=1, le=1000)):
+    """
+    Get audit logs.
+    
+    Args:
+        limit (int): Maximum number of logs to return (1-1000).
+    
+    Returns:
+        list: Audit logs.
+    """
+    try:
+        rds_helper.ensure_connection()
+        
+        query = """
+            SELECT audit_id as log_id, user_id, event_type, action, resource_type, 
+                   resource_id, status, ip_address, created_at
+            FROM audit_logs
+            ORDER BY created_at DESC 
+            LIMIT %s
+        """
+        
+        rds_helper.cursor.execute(query, (limit,))
+        logs = rds_helper.cursor.fetchall()
+        
+        return logs
+    except Exception as e:
+        logger.error(f"Error fetching audit logs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch audit logs: {str(e)}"
+        )

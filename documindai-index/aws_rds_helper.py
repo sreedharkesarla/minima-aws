@@ -45,7 +45,7 @@ class RDSHelper:
                 user=self.user,
                 password=self.password,
                 port=int(self.port),
-                cursorclass=cursors.Cursor,
+                cursorclass=cursors.DictCursor,
                 connect_timeout=10,
                 read_timeout=30,
                 write_timeout=30

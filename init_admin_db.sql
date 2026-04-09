@@ -178,3 +178,118 @@ SELECT '✅ Database initialization complete!' AS status;
 SELECT 'Super user created: admin / Admin@123' AS credentials;
 SELECT 'Test users: test, operator1, viewer1 (all with password: Test@123)' AS test_accounts;
 SELECT '⚠️  IMPORTANT: Change default passwords in production!' AS warning;
+
+-- ==========================================
+-- LOGGING TABLES - For Request/Response Tracking
+-- ==========================================
+
+-- ==========================================
+-- Table: api_request_logs
+-- Purpose: Track all API requests, WebSocket connections, performance metrics
+-- Retention: 30 days
+-- ==========================================
+CREATE TABLE IF NOT EXISTS api_request_logs (
+    log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(36) NOT NULL UNIQUE COMMENT 'UUID for request correlation',
+    service VARCHAR(50) NOT NULL COMMENT 'Service name: upload, index, chat',
+    method VARCHAR(10) COMMENT 'HTTP method: GET, POST, WebSocket',
+    path VARCHAR(500) COMMENT 'Request path/endpoint',
+    user_id VARCHAR(100) COMMENT 'User making the request',
+    status_code INT COMMENT 'HTTP status code (200, 404, 500, etc)',
+    duration_ms INT COMMENT 'Response time in milliseconds',
+    request_size INT COMMENT 'Request payload size in bytes',
+    response_size INT COMMENT 'Response payload size in bytes',
+    ip_address VARCHAR(45) COMMENT 'Client IP address (IPv6 compatible)',
+    user_agent TEXT COMMENT 'Browser/client user agent string',
+    error_message TEXT COMMENT 'Error message if request failed',
+    request_body JSON COMMENT 'Request payload for POST/PUT (optional, sanitized)',
+    response_body JSON COMMENT 'Response payload (optional, for errors)',
+    metadata JSON COMMENT 'Additional context (headers, query params, etc)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_service_time (service, created_at),
+    INDEX idx_user_id (user_id),
+    INDEX idx_request_id (request_id),
+    INDEX idx_status_code (status_code),
+    INDEX idx_created_at (created_at),
+    INDEX idx_duration (duration_ms),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='API request tracking for performance monitoring and debugging';
+
+-- ==========================================
+-- Table: application_logs
+-- Purpose: Application-level events, errors, warnings, debug info
+-- Retention: 90 days
+-- ==========================================
+CREATE TABLE IF NOT EXISTS application_logs (
+    log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(36) COMMENT 'Link to api_request_logs for correlation',
+    service VARCHAR(50) NOT NULL COMMENT 'Service name: upload, index, chat',
+    log_level ENUM('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL') NOT NULL,
+    message TEXT NOT NULL COMMENT 'Log message',
+    module VARCHAR(100) COMMENT 'Python module name (__name__)',
+    function_name VARCHAR(100) COMMENT 'Function/method name',
+    line_number INT COMMENT 'Source code line number',
+    user_id VARCHAR(100) COMMENT 'User context if available',
+    file_id VARCHAR(255) COMMENT 'File being processed (if applicable)',
+    conversation_id VARCHAR(255) COMMENT 'Chat conversation ID (if applicable)',
+    exception_type VARCHAR(100) COMMENT 'Exception class name',
+    stack_trace TEXT COMMENT 'Full stack trace for exceptions',
+    metadata JSON COMMENT 'Additional context (variables, state, etc)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_service_level_time (service, log_level, created_at),
+    INDEX idx_request_id (request_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_log_level (log_level),
+    INDEX idx_created_at (created_at),
+    INDEX idx_file_id (file_id),
+    INDEX idx_conversation_id (conversation_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Application logs for debugging and error tracking';
+
+-- ==========================================
+-- Table: audit_logs
+-- Purpose: Security and compliance audit trail (IMMUTABLE - append-only)
+-- Retention: 365 days (compliance requirement)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS audit_logs (
+    audit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL COMMENT 'Event: login, logout, file_upload, file_delete, role_change',
+    user_id VARCHAR(100) NOT NULL COMMENT 'User performing the action',
+    target_user_id VARCHAR(100) COMMENT 'Target user (for admin actions on users)',
+    resource_type VARCHAR(50) COMMENT 'Resource being accessed: file, user, role',
+    resource_id VARCHAR(255) COMMENT 'ID of the resource',
+    action VARCHAR(50) NOT NULL COMMENT 'Action: create, read, update, delete',
+    status VARCHAR(20) NOT NULL COMMENT 'Result: success, failed, blocked',
+    ip_address VARCHAR(45) COMMENT 'IP address of the user',
+    changes JSON COMMENT 'Before/after values for updates',
+    reason TEXT COMMENT 'Reason for action (if provided)',
+    metadata JSON COMMENT 'Additional context',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_event_type_time (event_type, created_at),
+    INDEX idx_user_id (user_id),
+    INDEX idx_target_user_id (target_user_id),
+    INDEX idx_resource (resource_type, resource_id),
+    INDEX idx_action (action),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Append-only audit trail for security and compliance';
+
+-- ==========================================
+-- Grant Permissions for Logging Tables
+-- ==========================================
+GRANT SELECT, INSERT, UPDATE, DELETE ON documindai_db.api_request_logs TO 'documindai_user'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON documindai_db.application_logs TO 'documindai_user'@'%';
+GRANT SELECT, INSERT ON documindai_db.audit_logs TO 'documindai_user'@'%';
+-- Note: audit_logs only has INSERT permission (append-only for compliance)
+
+FLUSH PRIVILEGES;
+
+SELECT '✅ Logging tables created successfully!' AS status;

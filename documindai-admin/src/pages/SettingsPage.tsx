@@ -60,6 +60,10 @@ interface SystemSettings {
     database: string;
     user: string;
   };
+  prompts: {
+    system: string | null;
+    context: string | null;
+  };
 }
 
 export const SettingsPage: React.FC = () => {
@@ -294,6 +298,69 @@ export const SettingsPage: React.FC = () => {
                   />
                 </ListItem>
               </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Services Configuration */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader
+              avatar={<Psychology color="primary" />}
+              title="AI System Prompts"
+              subheader="Chat assistant behavior configuration"
+            />
+            <Divider />
+            <CardContent>
+              {settings.prompts.system ? (
+                <Box>
+                  <Typography variant="subtitle2" color="text.primary" gutterBottom>
+                    System Prompt
+                  </Typography>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.50',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem',
+                      whiteSpace: 'pre-wrap',
+                      overflowX: 'auto',
+                      mb: 2,
+                    }}
+                  >
+                    {settings.prompts.system}
+                  </Paper>
+                  
+                  {settings.prompts.context && (
+                    <>
+                      <Typography variant="subtitle2" color="text.primary" gutterBottom sx={{ mt: 2 }}>
+                        Context Prompt
+                      </Typography>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          bgcolor: 'grey.50',
+                          fontFamily: 'monospace',
+                          fontSize: '0.875rem',
+                          whiteSpace: 'pre-wrap',
+                          overflowX: 'auto',
+                        }}
+                      >
+                        {settings.prompts.context}
+                      </Paper>
+                    </>
+                  )}
+                  
+                  <Alert severity="info" icon={<Info />} sx={{ mt: 2 }}>
+                    These prompts define how the AI assistant analyzes documents and responds to queries. 
+                    To modify, edit <code>documindai-chat/config.yml</code> and restart the chat service.
+                  </Alert>
+                </Box>
+              ) : (
+                <Alert severity="warning">
+                  System prompts not available. Ensure the chat service configuration is accessible.
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </Grid>

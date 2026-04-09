@@ -198,6 +198,49 @@ export const createUser = async (userData: {
   }
 };
 
+// ==================== LOGGING ====================
+
+export const getApiRequestLogs = async (limit: number = 100, service?: string): Promise<any[]> => {
+  try {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (service) params.append('service', service);
+    
+    const response = await api.get(`/upload/logs/api-requests?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch API request logs:', error);
+    return [];
+  }
+};
+
+export const getApplicationLogs = async (limit: number = 100, service?: string): Promise<any[]> => {
+  try {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (service) params.append('service', service);
+    
+    const response = await api.get(`/upload/logs/application?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch application logs:', error);
+    return [];
+  }
+};
+
+export const getAuditLogs = async (limit: number = 100): Promise<any[]> => {
+  try {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    
+    const response = await api.get(`/upload/logs/audit?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch audit logs:', error);
+    return [];
+  }
+};
+
 export const updateUser = async (userId: string, userData: {
   email?: string;
   full_name?: string;

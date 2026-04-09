@@ -8,6 +8,7 @@ import logging
 from async_loop import loop
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from logging_middleware import RequestLoggingMiddleware
 from uploader import Uploader
 from dependencies import async_queue
 from dependencies import rds_helper
@@ -114,6 +115,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         allow_credentials=True,
     )
+    
+    # Add request logging middleware
+    app.add_middleware(RequestLoggingMiddleware, service_name="upload")
     
     app.include_router(api.router)
     app.include_router(auth.router)

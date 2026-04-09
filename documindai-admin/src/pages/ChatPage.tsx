@@ -20,6 +20,8 @@ import {
   Divider,
   Badge,
   Tooltip,
+  Collapse,
+  Stack,
 } from '@mui/material';
 import { 
   Send, 
@@ -32,6 +34,9 @@ import {
   Settings,
   Clear,
   MoreVert,
+  ExpandMore,
+  ExpandLess,
+  Source,
 } from '@mui/icons-material';
 import { useAppContext } from '../contexts/AppContext';
 import { getFiles } from '../services/adminApi';
@@ -43,6 +48,10 @@ interface Message {
   text: string;
   timestamp: Date;
   fileReferences?: string[]; // File IDs referenced in this message
+  sources?: Array<{
+    content: string;
+    metadata: Record<string, any>;
+  }>;
 }
 
 interface Conversation {
@@ -66,6 +75,7 @@ export const ChatPage: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<FileMetadata[]>([]);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -110,10 +120,10 @@ export const ChatPage: React.FC = () => {
       }
     };
     
-    if (state.user && availableFiles.length > 0) {
+    if (state.user) {
       loadConversations();
     }
-  }, [state.user, availableFiles]);
+  }, [state.user]);
 
   // Save conversations to localStorage whenever they change
   useEffect(() => {
@@ -234,6 +244,7 @@ export const ChatPage: React.FC = () => {
             text: data.message,
             timestamp: new Date(),
             fileReferences: selectedFiles.map(f => f.fileId),
+            sources: data.sources || [],
           };
           updateCurrentConversation([...messages, botMessage]);
         } else if (data.type === 'start_message' || data.type === 'disconnect_message') {
@@ -489,6 +500,71 @@ export const ChatPage: React.FC = () => {
                           />
                         ) : null;
                       })}
+                    </Box>
+                  )}
+                  {message.sources && message.sources.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Button
+                        size="small"
+                        startIcon={<Source />}
+                        endIcon={expandedSources.has(message.id) ? <ExpandLess /> : <ExpandMore />}
+                        onClick={() => {
+                          const newExpanded = new Set(expandedSources);
+                          if (newExpanded.has(message.id)) {
+                            newExpanded.delete(message.id);
+                          } else {
+                            newExpanded.add(message.id);
+                          }
+                          setExpandedSources(newExpanded);
+                        }}
+                        sx={{ 
+                          textTransform: 'none',
+                          color: message.sender === 'user' ? 'primary.contrastText' : 'primary.main',
+                        }}
+                      >
+                        {message.sources.length} Source{message.sources.length !== 1 ? 's' : ''}
+                      </Button>
+                      <Collapse in={expandedSources.has(message.id)}>
+                        <Stack spacing={1} sx={{ mt: 1 }}>
+                          {message.sources.map((source, idx) => (
+                            <Paper
+                              key={idx}
+                              elevation={0}
+                              sx={{
+                                p: 1.5,
+                                bgcolor: message.sender === 'user' ? 'rgba(255,255,255,0.2)' : 'grey.50',
+                                border: '1px solid',
+                                borderColor: message.sender === 'user' ? 'rgba(255,255,255,0.3)' : 'grey.200',
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  display: 'block',
+                                  fontWeight: 'bold',
+                                  mb: 0.5,
+                                  color: message.sender === 'user' ? 'primary.contrastText' : 'text.secondary',
+                                }}
+                              >
+                                Source {idx + 1}
+                                {source.metadata.file_name && ` - ${source.metadata.file_name}`}
+                                {source.metadata.page && ` (Page ${source.metadata.page})`}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: '0.85rem',
+                                  fontFamily: 'monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  color: message.sender === 'user' ? 'primary.contrastText' : 'text.primary',
+                                }}
+                              >
+                                {source.content}
+                              </Typography>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      </Collapse>
                     </Box>
                   )}
                   <Typography

@@ -48,7 +48,7 @@ class RDSHelper:
                 user=self.user,
                 password=self.password,
                 port=int(self.port),
-                cursorclass=cursors.Cursor,
+                cursorclass=cursors.DictCursor,
                 connect_timeout=10,
                 read_timeout=30,
                 write_timeout=30
@@ -120,11 +120,11 @@ class RDSHelper:
             
             logger.info(f"Record inserted successfully, id: {record_id}")
             return json.dumps({
-                "id": record[0],
-                "file_id": record[1],
-                "user_id": record[2],
-                "file_name": record[3],
-                "status": record[4]
+                "id": record['id'],
+                "file_id": record['file_id'],
+                "user_id": record['user_id'],
+                "file_name": record['file_name'],
+                "status": record['status']
             })
         except Exception as error:
             logger.error(f"Error: Could not insert record\n{error}")
@@ -149,11 +149,14 @@ class RDSHelper:
             records = self.cursor.fetchall()
             logger.info(f"Fetched {len(records)} records, user_id: {user_id}")
             return [{
-                "id": record[0],
-                "file_id": record[1],
-                "user_id": record[2],
-                "file_name": record[3],
-                "status": record[4]
+                "fileId": record['file_id'],
+                "filename": record['file_name'],
+                "status": record['status'],
+                "userId": record['user_id'],
+                "documentType": "document",  # Default value - field not in DB yet
+                "fileSize": 0,  # Default value - field not in DB yet
+                "createdAt": "2026-01-01T00:00:00Z",  # Default value - field not in DB yet
+                "id": record['id']
             } for record in records]
         except Exception as error:
             logger.error(f"Error: Could not fetch records\n{error}")
@@ -178,11 +181,11 @@ class RDSHelper:
             self.connection.commit()
             logger.info(f"Updated {len(updated_records)} records")
             return json.dumps([{
-                "id": record[0],
-                "file_id": record[1],
-                "user_id": record[2],
-                "file_name": record[3],
-                "status": record[4]
+                "id": record['id'],
+                "file_id": record['file_id'],
+                "user_id": record['user_id'],
+                "file_name": record['file_name'],
+                "status": record['status']
             } for record in updated_records])
         except Exception as error:
             logger.error(f"Error: Could not update records\n{error}")
@@ -206,8 +209,8 @@ class RDSHelper:
             records = self.cursor.fetchall()
             logger.info(f"Fetched {len(records)} file statuses, user_id: {user_id}")
             return [{
-                "file_name": record[0],
-                "status": record[1]
+                "file_name": record['file_name'],
+                "status": record['status']
             } for record in records]
         except Exception as error:
             logger.error(f"Error: Could not fetch file statuses\n{error}")
@@ -254,7 +257,8 @@ class RDSHelper:
             
             # Delete from S3 and Qdrant for each file
             for record in records:
-                file_id, file_name = record[0], record[1]
+                file_id = record['file_id']
+                file_name = record['file_name']
                 
                 # Delete from S3
                 try:
@@ -341,17 +345,16 @@ class RDSHelper:
             
             users = []
             for record in records:
-                user_id, username, email, full_name, is_active, is_superuser, last_login, created_at, roles_str = record
                 users.append({
-                    "user_id": user_id,
-                    "username": username,
-                    "email": email,
-                    "full_name": full_name,
-                    "is_active": bool(is_active),
-                    "is_superuser": bool(is_superuser),
-                    "last_login": last_login.isoformat() if last_login else None,
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "roles": roles_str.split(',') if roles_str else []
+                    "user_id": record['user_id'],
+                    "username": record['username'],
+                    "email": record['email'],
+                    "full_name": record['full_name'],
+                    "is_active": bool(record['is_active']),
+                    "is_superuser": bool(record['is_superuser']),
+                    "last_login": record['last_login'].isoformat() if record['last_login'] else None,
+                    "created_at": record['created_at'].isoformat() if record['created_at'] else None,
+                    "roles": record['roles'].split(',') if record['roles'] else []
                 })
             
             logger.info(f"Fetched {len(users)} users with roles")
@@ -389,13 +392,12 @@ class RDSHelper:
             
             roles = []
             for record in records:
-                role_id, role_name, description, is_active, created_at = record
                 roles.append({
-                    "role_id": role_id,
-                    "role_name": role_name,
-                    "description": description,
-                    "is_active": bool(is_active),
-                    "created_at": created_at.isoformat() if created_at else None
+                    "role_id": record['role_id'],
+                    "role_name": record['role_name'],
+                    "description": record['description'],
+                    "is_active": bool(record['is_active']),
+                    "created_at": record['created_at'].isoformat() if record['created_at'] else None
                 })
             
             logger.info(f"Fetched {len(roles)} active roles")

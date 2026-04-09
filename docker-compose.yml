@@ -46,6 +46,7 @@ services:
     build: ./documindai-upload
     volumes:
       - ./documindai-upload:/usr/src/app
+      - ./documindai-chat/config.yml:/usr/src/chat-config.yml:ro
     ports:
       - 8001:8000
     env_file:
@@ -68,6 +69,11 @@ services:
       - RDS_DB_PASSWORD=${RDS_DB_PASSWORD}
       - RDS_DB_PORT=3306
       - QDRANT_BOOTSTRAP=${QDRANT_BOOTSTRAP:-qdrant}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       mysql:
         condition: service_healthy
@@ -103,6 +109,11 @@ services:
       - RDS_DB_USER=${RDS_DB_USER}
       - RDS_DB_PASSWORD=${RDS_DB_PASSWORD}
       - RDS_DB_PORT=${RDS_DB_PORT}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       mysql:
         condition: service_healthy
@@ -130,7 +141,19 @@ services:
       - QDRANT_COLLECTION=${QDRANT_COLLECTION}
       - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
       - CHAT_MODEL_ID=${CHAT_MODEL_ID}
+      - RDS_DB_INSTANCE=mysql
+      - RDS_DB_NAME=${RDS_DB_NAME}
+      - RDS_DB_USER=${RDS_DB_USER}
+      - RDS_DB_PASSWORD=${RDS_DB_PASSWORD}
+      - RDS_DB_PORT=3306
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
+      mysql:
+        condition: service_healthy
       qdrant:
         condition: service_started
 

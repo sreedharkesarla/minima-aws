@@ -29,6 +29,7 @@ import {
   Dashboard,
   Settings,
   HealthAndSafety,
+  Article,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
@@ -69,6 +70,7 @@ export const AppShell: React.FC = () => {
     { text: 'Users & Roles', icon: <People />, path: '/users' },
     { text: 'Usage & Costs', icon: <Analytics />, path: '/usage' },
     { text: 'System Health', icon: <HealthAndSafety />, path: '/health' },
+    { text: 'System Logs', icon: <Article />, path: '/logs' },
     { text: 'Settings', icon: <Settings />, path: '/settings' },
   ];
 
