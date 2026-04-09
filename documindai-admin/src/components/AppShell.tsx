@@ -27,6 +27,8 @@ import {
   Chat,
   Analytics,
   Dashboard,
+  Settings,
+  HealthAndSafety,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
@@ -66,6 +68,8 @@ export const AppShell: React.FC = () => {
     { text: 'Ask Chat', icon: <Chat />, path: '/chat' },
     { text: 'Users & Roles', icon: <People />, path: '/users' },
     { text: 'Usage & Costs', icon: <Analytics />, path: '/usage' },
+    { text: 'System Health', icon: <HealthAndSafety />, path: '/health' },
+    { text: 'Settings', icon: <Settings />, path: '/settings' },
   ];
 
   const drawer = (

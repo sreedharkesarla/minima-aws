@@ -14,3 +14,4 @@ aiofiles>=23.0.0
 bcrypt>=4.0.0
 passlib>=1.7.4
 qdrant-client
+requests>=2.31.0

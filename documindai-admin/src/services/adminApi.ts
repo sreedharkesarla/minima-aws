@@ -138,4 +138,44 @@ export const getRoles = async (): Promise<any[]> => {
   }
 };
 
+export const getSystemHealth = async (): Promise<any> => {
+  try {
+    const response = await api.get('/upload/health/system');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch system health:', error);
+    throw error;
+  }
+};
+
+export const getSystemSettings = async (): Promise<any> => {
+  try {
+    const response = await api.get('/upload/settings/system');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch system settings:', error);
+    throw error;
+  }
+};
+
+export const getUsageStats = async (userId: string, days: number = 30): Promise<any> => {
+  try {
+    const response = await api.get(`/upload/usage/${userId}?days=${days}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch usage stats:', error);
+    throw error;
+  }
+};
+
+export const getDailyUsage = async (userId: string, days: number = 30): Promise<any> => {
+  try {
+    const response = await api.get(`/upload/usage/${userId}/daily?days=${days}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch daily usage:', error);
+    throw error;
+  }
+};
+
 export default api;

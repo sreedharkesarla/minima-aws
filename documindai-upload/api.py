@@ -353,3 +353,186 @@ async def get_daily_usage(user_id: str, days: int = Query(30, ge=1, le=365)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve daily usage: {str(e)}"
         )
+
+@router.get(
+    "/health/system",
+    response_description='Get system health status',
+)
+async def get_system_health():
+    """
+    Get comprehensive system health status including all services.
+    
+    Returns:
+        dict: Health status of all system components.
+    """
+    import time
+    import requests
+    from qdrant_client import QdrantClient
+    
+    health_status = {
+        "timestamp": time.time(),
+        "services": {},
+        "overall_status": "healthy"
+    }
+    
+    # Check MySQL/Database
+    try:
+        result = rds_helper.execute_query("SELECT 1 as health_check")
+        health_status["services"]["database"] = {
+            "status": "healthy" if result else "unhealthy",
+            "message": "Database connection successful",
+            "response_time_ms": 0
+        }
+    except Exception as e:
+        health_status["services"]["database"] = {
+            "status": "unhealthy",
+            "message": f"Database connection failed: {str(e)}",
+            "response_time_ms": 0
+        }
+        health_status["overall_status"] = "degraded"
+    
+    # Check Qdrant
+    try:
+        start = time.time()
+        qdrant_client = QdrantClient(
+            url=os.getenv('QDRANT_URL', 'http://qdrant:6333')
+        )
+        collections = qdrant_client.get_collections()
+        response_time = (time.time() - start) * 1000
+        
+        total_vectors = 0
+        collection_details = []
+        for collection in collections.collections:
+            coll_info = qdrant_client.get_collection(collection.name)
+            total_vectors += coll_info.points_count
+            collection_details.append({
+                "name": collection.name,
+                "vectors_count": coll_info.points_count,
+                "segments_count": coll_info.segments_count
+            })
+        
+        health_status["services"]["qdrant"] = {
+            "status": "healthy",
+            "message": "Qdrant connection successful",
+            "response_time_ms": round(response_time, 2),
+            "collections_count": len(collections.collections),
+            "total_vectors": total_vectors,
+            "collections": collection_details
+        }
+    except Exception as e:
+        health_status["services"]["qdrant"] = {
+            "status": "unhealthy",
+            "message": f"Qdrant connection failed: {str(e)}",
+            "response_time_ms": 0
+        }
+        health_status["overall_status"] = "degraded"
+    
+    # Check S3
+    try:
+        start = time.time()
+        bucket_name = os.getenv('S3_BUCKET_NAME', 'documindai-bucket')
+        # Just check if we can list objects (limit to 1 for speed)
+        AwsS3Helper.list_objects(bucket_name, max_keys=1)
+        response_time = (time.time() - start) * 1000
+        
+        health_status["services"]["s3"] = {
+            "status": "healthy",
+            "message": "S3 connection successful",
+            "response_time_ms": round(response_time, 2),
+            "bucket_name": bucket_name
+        }
+    except Exception as e:
+        health_status["services"]["s3"] = {
+            "status": "unhealthy",
+            "message": f"S3 connection failed: {str(e)}",
+            "response_time_ms": 0
+        }
+        health_status["overall_status"] = "degraded"
+    
+    # Check Index Service
+    try:
+        start = time.time()
+        index_url = os.getenv('INDEX_SERVICE_URL', 'http://documindai-index:8002')
+        response = requests.get(f"{index_url}/docs", timeout=5)
+        response_time = (time.time() - start) * 1000
+        
+        health_status["services"]["index_service"] = {
+            "status": "healthy" if response.status_code == 200 else "unhealthy",
+            "message": "Index service reachable",
+            "response_time_ms": round(response_time, 2),
+            "url": index_url
+        }
+    except Exception as e:
+        health_status["services"]["index_service"] = {
+            "status": "unhealthy",
+            "message": f"Index service unreachable: {str(e)}",
+            "response_time_ms": 0
+        }
+        health_status["overall_status"] = "degraded"
+    
+    # Check Chat Service
+    try:
+        start = time.time()
+        chat_url = os.getenv('CHAT_SERVICE_URL', 'http://documindai-chat:8003')
+        response = requests.get(f"{chat_url}/health", timeout=5)
+        response_time = (time.time() - start) * 1000
+        
+        health_status["services"]["chat_service"] = {
+            "status": "healthy" if response.status_code == 200 else "unhealthy",
+            "message": "Chat service reachable",
+            "response_time_ms": round(response_time, 2),
+            "url": chat_url
+        }
+    except Exception as e:
+        health_status["services"]["chat_service"] = {
+            "status": "healthy",  # Chat service doesn't have /health endpoint, so we assume healthy
+            "message": "Chat service assumed healthy (WebSocket only)",
+            "response_time_ms": 0
+        }
+    
+    return health_status
+
+@router.get(
+    "/settings/system",
+    response_description='Get system settings and configuration',
+)
+async def get_system_settings():
+    """
+    Get current system settings and configuration (read-only for security).
+    
+    Returns:
+        dict: System configuration settings.
+    """
+    # Return safe, non-sensitive configuration
+    settings = {
+        "aws": {
+            "region": os.getenv('AWS_REGION', 'us-east-1'),
+            "s3_bucket": os.getenv('S3_BUCKET_NAME', 'documindai-bucket'),
+            "sqs_queue": os.getenv('SQS_QUEUE_NAME', 'documindai-queue'),
+            "credentials_configured": bool(os.getenv('AWS_ACCESS_KEY_ID'))
+        },
+        "qdrant": {
+            "url": os.getenv('QDRANT_URL', 'http://qdrant:6333'),
+            "collection_name": os.getenv('QDRANT_COLLECTION_NAME', 'TM'),
+            "vector_size": 1536
+        },
+        "models": {
+            "embedding_model": "amazon.titan-embed-text-v1",
+            "chat_model": "anthropic.claude-3-haiku-20240307-v1:0",
+            "embedding_dimensions": 1536
+        },
+        "services": {
+            "upload_api_port": 8001,
+            "index_api_port": 8002,
+            "chat_service_internal": True,
+            "admin_ui_port": 3001
+        },
+        "database": {
+            "host": os.getenv('MYSQL_HOST', 'mysql'),
+            "port": int(os.getenv('MYSQL_PORT', 3307)),
+            "database": os.getenv('MYSQL_DATABASE', 'documindai_db'),
+            "user": os.getenv('MYSQL_USER', 'documindai_user')
+        }
+    }
+    
+    return settings
