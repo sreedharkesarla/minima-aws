@@ -1,4 +1,4 @@
-# Minima AWS - Project Architecture & UI Implementation
+# DocMindAI AWS - Project Architecture & UI Implementation
 
 ## 📋 Table of Contents
 1. [System Overview](#system-overview)
@@ -16,7 +16,7 @@
 
 ## 🎯 System Overview
 
-**Minima AWS** is a Retrieval-Augmented Generation (RAG) system that enables users to upload documents, automatically index them using AI-powered embeddings, and engage in intelligent conversations about the document content using AWS Bedrock's large language models.
+**DocMindAI AWS** is a Retrieval-Augmented Generation (RAG) system that enables users to upload documents, automatically index them using AI-powered embeddings, and engage in intelligent conversations about the document content using AWS Bedrock's large language models.
 
 ### Key Capabilities
 - **Document Upload & Management**: Upload PDF, TXT, DOCX files with automatic processing  
@@ -39,7 +39,7 @@
 │                                                                           │
 │  ┌──────────────────────┐              ┌──────────────────────┐         │
 │  │   test-ui.html       │              │   React UI           │         │
-│  │   (Simple HTML)      │              │   (mnma-ui/)         │         │
+│  │   (Simple HTML)      │              │   (documindai-ui/)         │         │
 │  │                      │              │                      │         │
 │  │  • Login             │              │  • Material-UI       │         │
 │  │  • Upload Files      │              │  • TypeScript        │         │
@@ -58,7 +58,7 @@
 ├───────────────────────────────┼──────────────────────────────────────────┤
 │                               │                                           │
 │   ┌────────────────┐    ┌─────┴──────┐    ┌──────────────┐             │
-│   │  mnma-upload   │    │ mnma-index │    │  mnma-chat   │             │
+│   │  documindai-upload   │    │ documindai-index │    │  documindai-chat   │             │
 │   │   Port 8001    │    │ Port 8002  │    │  Port 8003   │             │
 │   ├────────────────┤    ├────────────┤    ├──────────────┤             │
 │   │ • File Upload  │    │ • SQS Poll │    │ • WebSocket  │             │
@@ -117,7 +117,7 @@
 
 ## 🔧 Backend Services Architecture
 
-### 1. **mnma-upload Service** (Port 8001)
+### 1. **documindai-upload Service** (Port 8001)
 
 **Purpose**: Handles file uploads, storage, and indexing job initiation
 
@@ -130,7 +130,7 @@
 
 **Key Components**:
 ```
-mnma-upload/
+documindai-upload/
 ├── app.py                    # FastAPI application, lifespan management
 ├── api.py                    # REST API endpoints
 ├── uploader.py               # File upload logic
@@ -176,7 +176,7 @@ database:
 
 ---
 
-### 2. **mnma-index Service** (Port 8002)
+### 2. **documindai-index Service** (Port 8002)
 
 **Purpose**: Async document processing - download, chunk, embed, and index into Qdrant
 
@@ -189,7 +189,7 @@ database:
 
 **Key Components**:
 ```
-mnma-index/
+documindai-index/
 ├── app.py                    # FastAPI app, SQS consumer
 ├── indexer.py                # Core indexing logic
 ├── aws_s3_helper.py          # Download from S3
@@ -277,7 +277,7 @@ aws:
 
 ---
 
-### 3. **mnma-chat Service** (Port 8003)
+### 3. **documindai-chat Service** (Port 8003)
 
 **Purpose**: Real-time conversational AI over indexed documents via WebSocket
 
@@ -290,7 +290,7 @@ aws:
 
 **Key Components**:
 ```
-mnma-chat/
+documindai-chat/
 ├── app.py                          # WebSocket endpoint
 ├── chat_retriever.py               # RAG retrieval logic
 ├── async_socket_to_chat.py         # WS → Chat queue
@@ -534,7 +534,7 @@ s3://{AWS_BUCKET_NAME}/
         └── {file_id}.{extension}
 
 Example:
-s3://minima-docs/
+s3://documindai-docs/
 └── uploads/
     ├── test/
     │   ├── abc123.pdf
@@ -572,8 +572,8 @@ s3://minima-docs/
 ```
 
 **Flow**:
-1. **Producer** (mnma-upload): Pushes message after file upload
-2. **Consumer** (mnma-index): Long polls, processes batch, deletes message
+1. **Producer** (documindai-upload): Pushes message after file upload
+2. **Consumer** (documindai-index): Long polls, processes batch, deletes message
 3. **Retry**: If processing fails, message reappears after visibility timeout
 
 ---
@@ -665,16 +665,16 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=us-east-1
 
 # S3
-AWS_BUCKET_NAME=minima-docs
+AWS_BUCKET_NAME=documindai-docs
 AWS_FILES_PATH=uploads
 LOCAL_FILES_PATH=/tmp/uploads
 
 # SQS
-AWS_SQS_QUEUE=minima-indexing-queue
+AWS_SQS_QUEUE=documindai-indexing-queue
 
 # RDS
-RDS_DB_INSTANCE=minima-db.abc123.us-east-1.rds.amazonaws.com
-RDS_DB_NAME=minima
+RDS_DB_INSTANCE=documindai-db.abc123.us-east-1.rds.amazonaws.com
+RDS_DB_NAME=documindai
 RDS_DB_USER=admin
 RDS_DB_PASSWORD=...
 RDS_DB_PORT=3306
@@ -708,7 +708,7 @@ CHAT_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Minima - Test UI</title>
+    <title>DocMindAI - Test UI</title>
     <style>
         /* Embedded CSS - professional styling */
         .tabs { display: flex; border-bottom: 2px solid #ddd; }
@@ -720,7 +720,7 @@ CHAT_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
 </head>
 <body>
     <div class="container">
-        <h1>Minima - Document Intelligence</h1>
+        <h1>DocMindAI - Document Intelligence</h1>
         
         <!-- Tab Navigation -->
         <div class="tabs">
@@ -1016,7 +1016,7 @@ xdg-open test-ui.html  # Linux
 
 ---
 
-### Option 2: Professional React UI (`mnma-ui/`)
+### Option 2: Professional React UI (`documindai-ui/`)
 
 **Purpose**: Full-featured, production-ready application with advanced UI/UX
 
@@ -1035,7 +1035,7 @@ xdg-open test-ui.html  # Linux
 
 **Project Structure**:
 ```
-mnma-ui/
+documindai-ui/
 ├── public/
 │   └── vite.svg
 ├── src/
@@ -1107,7 +1107,7 @@ function App() {
         <BrowserRouter>
           <AppBar position="static">
             <Toolbar>
-              <Typography variant="h6">Minima - Document Intelligence</Typography>
+              <Typography variant="h6">DocMindAI - Document Intelligence</Typography>
             </Toolbar>
           </AppBar>
 
@@ -1517,7 +1517,7 @@ export const ChatPage: React.FC = () => {
 **Building & Running**:
 ```bash
 # Development mode (local)
-cd mnma-ui
+cd documindai-ui
 npm install          # Install dependencies (~5 min first time)
 npm run dev          # Start dev server on http://localhost:5173
 
@@ -1527,8 +1527,8 @@ npm run preview      # Preview production build
 
 # Docker deployment
 cd ..
-docker compose build mnma-ui    # Build container (slow on Alpine)
-docker compose up -d mnma-ui    # Run on http://localhost:3000
+docker compose build documindai-ui    # Build container (slow on Alpine)
+docker compose up -d documindai-ui    # Run on http://localhost:3000
 ```
 
 **Advantages over Simple HTML**:
@@ -2289,12 +2289,12 @@ services:
       QDRANT__LOG_LEVEL: INFO
 
   # Upload service
-  mnma-upload:
-    build: ./mnma-upload
+  documindai-upload:
+    build: ./documindai-upload
     ports:
       - 8001:8000
     volumes:
-      - ./mnma-upload:/usr/src/app
+      - ./documindai-upload:/usr/src/app
     env_file:
       - .env
     environment:
@@ -2306,28 +2306,28 @@ services:
       - qdrant
 
   # Indexing service
-  mnma-index:
-    build: ./mnma-index
+  documindai-index:
+    build: ./documindai-index
     ports:
       - 8002:8000
     volumes:
-      - ./mnma-index:/usr/src/app
+      - ./documindai-index:/usr/src/app
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=TRUE
       # ... (all env vars)
     depends_on:
-      - mnma-upload
+      - documindai-upload
       - qdrant
 
   # Chat service
-  mnma-chat:
-    build: ./mnma-chat
+  documindai-chat:
+    build: ./documindai-chat
     ports:
       - 8003:8000
     volumes:
-      - ./mnma-chat:/usr/src/app
+      - ./documindai-chat:/usr/src/app
     env_file:
       - .env
     environment:
@@ -2337,13 +2337,13 @@ services:
       - qdrant
 
   # React UI (optional)
-  mnma-ui:
-    build: ./mnma-ui
+  documindai-ui:
+    build: ./documindai-ui
     ports:
       - 3000:3000
     depends_on:
-      - mnma-upload
-      - mnma-chat
+      - documindai-upload
+      - documindai-chat
       - qdrant
 
   # Admin UI (production-ready)
@@ -2352,8 +2352,8 @@ services:
     ports:
       - 3001:80
     depends_on:
-      - mnma-upload
-      - mnma-chat
+      - documindai-upload
+      - documindai-chat
       - qdrant
 ```
 
@@ -2372,8 +2372,8 @@ docker compose logs -f
 docker compose down
 
 # Rebuild specific service
-docker compose build mnma-upload
-docker compose up -d mnma-upload
+docker compose build documindai-upload
+docker compose up -d documindai-upload
 ```
 
 **Service URLs** (after deployment):
@@ -2403,7 +2403,7 @@ Test UI:            file:///.../test-ui.html
        │    (multipart/form-data)
        ▼
 ┌──────────────┐
-│ mnma-upload  │
+│ documindai-upload  │
 │  FastAPI     │
 └──────┬───────┘
        │
@@ -2439,7 +2439,7 @@ Test UI:            file:///.../test-ui.html
 
 ```
 ┌──────────────┐
-│ mnma-index   │
+│ documindai-index   │
 │  (SQS Poll)  │
 └──────┬───────┘
        │
@@ -2454,7 +2454,7 @@ Test UI:            file:///.../test-ui.html
          │
          ▼
     ┌──────────────┐
-    │ mnma-index   │
+    │ documindai-index   │
     │  Processor   │
     └──────┬───────┘
            │
@@ -2515,7 +2515,7 @@ Test UI:            file:///.../test-ui.html
        │
        ▼
 ┌──────────────┐
-│  mnma-chat   │
+│  documindai-chat   │
 │  WebSocket   │
 └──────┬───────┘
        │
@@ -2602,9 +2602,9 @@ Concurrent Users:
 ### Scalability Considerations
 ```yaml
 Horizontal Scaling:
-  - Multiple mnma-upload instances (load balancer)
-  - Multiple mnma-index workers (SQS consumers)
-  - Multiple mnma-chat instances (sticky sessions)
+  - Multiple documindai-upload instances (load balancer)
+  - Multiple documindai-index workers (SQS consumers)
+  - Multiple documindai-chat instances (sticky sessions)
 
 Vertical Scaling:
   - Qdrant memory: 16GB+ for 1M vectors
@@ -2652,7 +2652,7 @@ CORS:
 
 4. **Triple UI Strategy**: 
    - **Admin UI** (documindai-admin): Production-ready Material-UI interface with advanced features
-   - **React UI** (mnma-ui): Professional chat-focused interface
+   - **React UI** (documindai-ui): Professional chat-focused interface
    - **Test UI**: Simple HTML for quick testing
 
 5. **Vector Search**: Qdrant provides fast, accurate semantic search over document embeddings
@@ -2683,4 +2683,10 @@ CORS:
 **Document Version**: 2.0  
 **Last Updated**: April 10, 2026  
 **Status**: Production-Ready (Backend + Admin UI), Testing (React UI)
+
+---
+
+## 📄 License
+
+**DocuMindAI is licensed under the Peoplefluent**
 
